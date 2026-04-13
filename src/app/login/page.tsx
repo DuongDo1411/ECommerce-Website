@@ -90,7 +90,7 @@ function SignIn() {
               type='submit'
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className='mt-2 px-8 py-3.5 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 rounded-xl font-semibold w-full text-white shadow-lg shadow-blue-500/30 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed'
+              className='mt-2 px-8 py-3.5 flex items-center justify-center gap-2 bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 rounded-xl font-semibold w-full text-white shadow-lg shadow-blue-500/30 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed'
             >
               {loading ? <ClipLoader color='white' size={20} /> : "Đăng nhập"}
             </motion.button>

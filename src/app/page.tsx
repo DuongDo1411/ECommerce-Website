@@ -1,7 +1,5 @@
 import React from "react";
 
-function page() {
+export default async function Home() {
   return <div></div>;
 }
-
-export default page;
