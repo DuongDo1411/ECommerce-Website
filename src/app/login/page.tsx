@@ -86,7 +86,7 @@ function SignIn() {
                     </div>   
 
                     <motion.button
-                    type='submit'
+                    onClick={()=>signIn("google", {callbackUrl:"/"})}
                     whileHover={{scale: 1.03}}
                     whileTap={{scale: 0.95}}
                     className='flex items-center justify-center gap-3 py-3 bg-white/10 hover:bg-white/20 border border-white/30 rounded-xl transition'
