@@ -6,6 +6,9 @@ import React from "react";
 import EditRole_Phone from "./component/EditRole_Phone";
 import { div } from "motion/react-client";
 import Navbar from "./component/Navbar";
+import UserDashBoard from "./component/User/UserDashBoard";
+import AdminDashBoard from "./component/Admin/AdminDashBoard";
+import VendorDashBoard from "./component/Vendor/VendorDashBoard";
 
 export default async function Home() {
   await connectDB();
@@ -22,7 +25,8 @@ export default async function Home() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-gray-900 via-black to-gray-900
     font-sans flex-col">
-      <Navbar user={plainUser}/>   
+      <Navbar user={plainUser}/>
+      {user?.role == "user" ? (<UserDashBoard/>) : user?.role == "vendor" ? (<VendorDashBoard/>) : (<AdminDashBoard/>)  }   
     </div>
   )
 }
