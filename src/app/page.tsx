@@ -8,7 +8,12 @@ import { div } from "motion/react-client";
 import Navbar from "./component/Navbar";
 import UserDashBoard from "./component/User/UserDashBoard";
 import AdminDashBoard from "./component/Admin/AdminDashBoard";
-import VendorDashBoard from "./component/Vendor/VendorDashBoard";
+import VendorDashboard from "./component/Vendor/VendorDashBoard";
+import Footer from "./component/Footer";
+
+
+
+
 
 export default async function Home() {
   await connectDB();
@@ -26,7 +31,8 @@ export default async function Home() {
     <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-gray-900 via-black to-gray-900
     font-sans flex-col">
       <Navbar user={plainUser}/>
-      {user?.role == "user" ? (<UserDashBoard/>) : user?.role == "vendor" ? (<VendorDashBoard/>) : (<AdminDashBoard/>)  }   
+      {user?.role == "user" ? (<UserDashBoard/>) : user?.role == "vendor" ? (<VendorDashboard/>) : (<AdminDashBoard/>)  } 
+      <Footer/>  
     </div>
   )
 }

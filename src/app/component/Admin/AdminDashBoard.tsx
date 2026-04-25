@@ -4,7 +4,7 @@ import { MdDashboard } from "react-icons/md";
 import { FaUsers, FaShoppingBag, FaStore, FaCheckCircle, FaBox } from "react-icons/fa";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import { AnimatePresence, motion } from 'motion/react';
-import AdminDashboard from './Dashboard';
+import Dashboard from './Dashboard';
 import VendorDetails from './VendorDetails';
 import UserOrders from './UserOrders';
 import VendorApproval from './VendorApproval';
@@ -15,7 +15,7 @@ function AdminDashBoard() {
   const renderPage = () => {
     switch(activePage){
       case "dashboard":
-        return <AdminDashboard />;
+        return <Dashboard />;
       case "vendors":
         return <VendorDetails />;
       case "orders":

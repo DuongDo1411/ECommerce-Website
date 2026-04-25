@@ -1,11 +1,11 @@
 import React from 'react'
 
-function Dashboard() {
+function VendorProducts() {
   return (
     <div className='flex items-center justify-center h-screen w-full'>
-      <h1 className='text-4xl text-white'>Dashboard</h1>
+      <h1 className='text-4xl text-white'>User Orders</h1>
     </div>
   )
 }
 
-export default Dashboard
+export default VendorProducts
