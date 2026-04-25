@@ -4,7 +4,7 @@ import Slider1 from '@/assets/Sliders/Slider1.jpg'
 import Slider2 from '@/assets/Sliders/Slider2.jpg'
 import Slider3 from '@/assets/Sliders/Slider3.jpg'
 import Slider4 from '@/assets/Sliders/Slider4.jpg'
-import Slider5 from '@/assets/Sliders/Slider5.jpg'
+import slider5 from '@/assets/Sliders/slider5.jpg'
 import { AnimatePresence, motion } from 'motion/react'
 import Image from 'next/image'
 
@@ -20,7 +20,7 @@ function Slider() {
             
         },
         {
-            image: Slider2,
+            image: Slider4,
             title: "STEP INTO POWER",
             subtitle: "FEEL THE SPEED",
             description: "Smart Gadgets for Smart People",
@@ -28,7 +28,7 @@ function Slider() {
             
         },
         {
-            image: Slider3,
+            image: slider5,
             title: "STYLE & COMFORT",
             subtitle: "STEP INTO NEW ERA.",
             description: "Tommy Shelby 's factions",
