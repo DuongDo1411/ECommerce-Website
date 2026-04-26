@@ -32,7 +32,7 @@ export default async function Home() {
     font-sans flex-col">
       <Navbar user={plainUser}/>
       {user?.role == "user" ? (<UserDashBoard/>) : user?.role == "vendor" ? (<VendorDashboard/>) : (<AdminDashBoard/>)  } 
-      <Footer/>  
+      <Footer user={plainUser}/>  
     </div>
   )
 }
