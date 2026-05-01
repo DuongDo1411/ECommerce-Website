@@ -1,8 +1,8 @@
 import { IUser } from "@/model/user.model";
-import { RootState } from "@/redux/store";
+import { AppDispatch, RootState } from "@/redux/store";
 import { AnimatePresence, motion } from "motion/react";
 import React, { useState } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import {
   FaStore,
   FaPhone,
@@ -11,17 +11,78 @@ import {
   FaFileInvoice,
 } from "react-icons/fa6";
 import { IoCheckmarkCircle, IoCloseCircle } from "react-icons/io5";
+import axios from "axios";
+import UseGetAllVendors from "@/hooks/UserGetAllVendors";
+import { setAllVendorData } from "@/redux/vendorSlice";
+import { ClipLoader } from "react-spinners";
 
 function VendorApproval() {
+  const dispatch = useDispatch<AppDispatch>();
+  UseGetAllVendors();
   const allVendorsData: IUser[] = useSelector(
     (state: RootState) => state.vendor.allVendorsData,
   );
   const pendingVendors = Array.isArray(allVendorsData)
-    ? allVendorsData.filter((v) => v.veritificationStatus == "pending")
+    ? allVendorsData.filter((v) => v.verificationStatus == "pending")
     : [];
 
   const [selectedVendor, setSelectedVendor] = useState<IUser | null>(null);
 
+  const [loading, setLoading] = useState(false);
+
+  const [rejectModel, setRejectModel] = useState(false);
+
+  const [rejectedReason, setRejectedReason] = useState("");
+
+  const openRejectReasonArea = () => {
+    setRejectModel(true);
+    setRejectedReason("");
+  };
+
+  const handleApproved = async () => {
+    if (!selectedVendor) return;
+    setLoading(true);
+    try {
+      await axios.post("/api/admin/update_vendor_status", {
+        vendorId: selectedVendor?._id,
+        status: "approved",
+      });
+      const updated = allVendorsData.filter(
+        (v) => v._id !== selectedVendor?._id,
+      );
+      dispatch(setAllVendorData(updated));
+      setSelectedVendor(null);
+      setLoading(false);
+      alert("Approval Success");
+    } catch (error) {
+      console.log(error);
+      setLoading(false);
+      alert("Approval Failed");
+    }
+  };
+
+  const handleRejected = async () => {
+    if (!selectedVendor) return;
+    setLoading(true);
+    try {
+      await axios.post("/api/admin/update_vendor_status", {
+        vendorId: selectedVendor?._id,
+        status: "rejected",
+        rejectedReason,
+      });
+      const updated = allVendorsData.filter(
+        (v) => v._id !== selectedVendor?._id,
+      );
+      dispatch(setAllVendorData(updated));
+      setSelectedVendor(null);
+      setLoading(false);
+      alert("Vendor Rejected");
+    } catch (error) {
+      console.log(error);
+      setLoading(false);
+      alert("Rejected Failed");
+    }
+  };
   return (
     <div className="w-full px-3 sm:px-6 lg:px-10 py-6 text-white">
       {/* Header */}
@@ -97,7 +158,7 @@ function VendorApproval() {
                       whileHover={{ scale: 1.05 }}
                       className="inline-block px-4 py-1.5 rounded-full text-xs font-semibold bg-linear-to-r from-blue-600/40 to-blue-500/40 text-blue-300 border border-blue-500/30"
                     >
-                      ⏳ {vendor?.veritificationStatus}
+                      ⏳ {vendor?.verificationStatus}
                     </motion.span>
                   </td>
                   <td className="p-4 text-center">
@@ -264,14 +325,17 @@ function VendorApproval() {
                 className="flex flex-col sm:flex-row gap-3"
               >
                 <motion.button
+                  disabled={loading}
+                  onClick={handleApproved}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className="flex-1 bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-green-500/30 transition-all flex items-center justify-center gap-2"
                 >
                   <IoCheckmarkCircle size={18} />
-                  Approve
+                  {loading ? <ClipLoader size={20} color="white" /> : "Approve"}
                 </motion.button>
                 <motion.button
+                  onClick={openRejectReasonArea}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className="flex-1 bg-linear-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-red-500/30 transition-all flex items-center justify-center gap-2"
@@ -283,6 +347,80 @@ function VendorApproval() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setSelectedVendor(null)}
+                  className="flex-1 bg-linear-to-r from-gray-700 to-gray-600 hover:from-gray-800 hover:to-gray-700 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-gray-500/20 transition-all"
+                >
+                  Cancel
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {rejectModel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8"
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.85, y: 20 }}
+              transition={{
+                duration: 0.4,
+                type: "spring",
+                stiffness: 200,
+                damping: 24,
+              }}
+              className="bg-linear-to-br from-gray-900 via-black to-gray-950 p-6 md:p-8 rounded-2xl w-full max-w-lg border border-blue-500/20 shadow-2xl shadow-black/50"
+            >
+              {/* Modal Header */}
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="mb-6 pb-4 border-b border-blue-500/20"
+              >
+                <h3 className="text-2xl font-bold bg-linear-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
+                  Enter Rejection Reason
+                </h3>
+                <textarea
+                  placeholder="Enter your rejection reason....."
+                  className="w-full bg-white/10 border border-white/20 
+                rounded-lg p-3 text-sm"
+                  rows={3}
+                  onChange={(e) => setRejectedReason(e.target.value)}
+                  value={rejectedReason}
+                />
+              </motion.div>
+
+              {/* Action Buttons */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="flex flex-col sm:flex-row gap-3"
+              >
+                <motion.button
+                  onClick={async () => {
+                    await handleRejected();
+                    setRejectModel(false);
+                  }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex-1 bg-linear-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-red-500/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <IoCloseCircle size={18} />
+                  {loading ? <ClipLoader size={20} color="white" /> : "Reject"}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setRejectModel(false)}
                   className="flex-1 bg-linear-to-r from-gray-700 to-gray-600 hover:from-gray-800 hover:to-gray-700 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-gray-500/20 transition-all"
                 >
                   Cancel

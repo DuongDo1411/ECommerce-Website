@@ -2,7 +2,7 @@ import { timeStamp } from "console";
 import mongoose from "mongoose";
 
 export interface IUser {
-  id?: mongoose.Types.ObjectId;
+  _id?: mongoose.Types.ObjectId;
   name?: string;
   password?: string;
   email?: string;
@@ -14,8 +14,8 @@ export interface IUser {
   shopName?: string;
   shopAddress?: string;
   taxNumber?: string;
-  isAproved?: boolean;
-  veritificationStatus?: "pending" | "approved" | "rejected";
+  isApproved?: boolean;
+  verificationStatus?: "pending" | "approved" | "rejected";
   requestedAt?: Date;
   approvedAt?: Date;
   rejectedReason?: string;
@@ -66,11 +66,11 @@ const userSchema = new mongoose.Schema<IUser>(
     taxNumber: {
       type: String,
     },
-    isAproved: {
+    isApproved: {
       type: Boolean,
       default: false,
     },
-    veritificationStatus: {
+    verificationStatus: {
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",

@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
         if(!user){
             return NextResponse.json({message: "User is not found"}, {status: 400});
         }
-        return NextResponse.json({message: "Vendor details submitted successfully"}, {status: 200});
+        return NextResponse.json({message: "Vendor details submitted successfully" , user}, {status: 200});
     } catch (error) {
         return NextResponse.json({message: `Edit vendor details error ${error}`}, {status: 500});
     }
