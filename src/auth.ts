@@ -50,6 +50,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email: user.email,
             image: user.image
           })
+        } else if(!existingUser.image && user.image) {
+            existingUser.image = user.image;
+            await existingUser.save();
         }
         user.id = existingUser._id.toString();
         user.role = existingUser.role.toString();
