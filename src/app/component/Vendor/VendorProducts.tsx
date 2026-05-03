@@ -1,11 +1,7 @@
-import React from 'react'
+import React from "react";
 
 function VendorProducts() {
-  return (
-    <div className='flex items-center justify-center h-screen w-full'>
-      <h1 className='text-4xl text-white'>User Orders</h1>
-    </div>
-  )
+  return <div className="w-full p-4 sm:p-8 text-white"></div>;
 }
 
-export default VendorProducts
+export default VendorProducts;
