@@ -1,6 +1,7 @@
 "use client";
 import UseGetCurrentUser from "@/hooks/UseGetCurrentUser";
-import { RootState } from "@/redux/store";
+import { AppDispatch, RootState } from "@/redux/store";
+import { setUserData } from "@/redux/userSlice";
 import axios from "axios";
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
@@ -8,7 +9,7 @@ import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { AiOutlineUser } from "react-icons/ai";
 import { FaPhone, FaStore, FaMapLocationDot, FaReceipt } from "react-icons/fa6";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { ClipLoader } from "react-spinners";
 
 const DEFAULT_AVATAR =
@@ -29,12 +30,35 @@ function Profile() {
   const [shopAddress, setShopAddress] = useState(user?.shopAddress || "");
   const [taxNumber, setTaxNumber] = useState(user?.taxNumber || "");
   const [loading, setLoading] = useState(false);
-
+  const dispatch = useDispatch<AppDispatch>();
   const handlePreviewImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setProfileImage(file);
     setPreviewImage(URL.createObjectURL(file));
+  };
+
+  const handleUpdateProfile = async () => {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("phone", phone);
+
+    if (profileImage) {
+      formData.append("image", profileImage);
+    }
+
+    setLoading(true);
+    try {
+      const result = await axios.post("/api/user/update-profile", formData);
+      dispatch(setUserData(result.data));
+      console.log(result);
+      setLoading(false);
+      alert("Profile updated successfully ✅");
+    } catch (error) {
+      console.log(error);
+      setLoading(false);
+      alert("Profile update error ❌");
+    }
   };
 
   const handleVerifyAgain = async () => {
@@ -63,7 +87,7 @@ function Profile() {
     user?.image ||
     `https://ui-avatars.com/api/?background=0D8ABC&color=fff&size=120&name=${encodeURIComponent(user?.name || "User")}`;
 
-  const [previewImage, setPreviewImage] = useState<string>(avatarUrl);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen bg-linear-to-br from-black via-gray-950 to-black text-white px-4 pt-24 pb-10">
@@ -279,7 +303,7 @@ function Profile() {
                   className="w-28 h-28 rounded-full overflow-hidden border-3 border-blue-500/50 hover:border-blue-400 shadow-lg shadow-blue-500/30 mb-4 transition-all"
                 >
                   <Image
-                    src={previewImage}
+                    src={previewImage || avatarUrl}
                     width={120}
                     height={120}
                     alt="select Image"
@@ -333,9 +357,15 @@ function Profile() {
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
+                  disabled={loading}
+                  onClick={handleUpdateProfile}
                   className="w-full bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 py-3 rounded-lg font-semibold shadow-lg shadow-blue-500/30 transition-all mt-6"
                 >
-                  💾 Update Profile
+                  {loading ? (
+                    <ClipLoader color="white" size={24} />
+                  ) : (
+                    "💾 Update Profile"
+                  )}
                 </motion.button>
               </motion.div>
             </motion.div>
