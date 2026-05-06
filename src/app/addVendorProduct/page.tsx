@@ -1,8 +1,11 @@
 "use client";
+import axios from "axios";
 import { motion } from "motion/react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { FiUpload, FiX, FiCheck } from "react-icons/fi";
+import { ClipLoader } from "react-spinners";
 
 function AddVendorProduct() {
   const categories = [
@@ -43,7 +46,8 @@ function AddVendorProduct() {
   const [preview4, setPreview4] = useState<string | null>(null);
   const [detailPoints, setDetailPoints] = useState<string[]>([]);
   const [currentPoint, setCurrentPoint] = useState("");
-
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
   const toggleSize = (size: string) => {
     setSizes((prev) =>
       prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size],
@@ -72,6 +76,66 @@ function AddVendorProduct() {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+  };
+
+  const handleSubmit = async () => {
+    if (
+      !title ||
+      !description ||
+      !stock ||
+      !price ||
+      !category ||
+      !image1 ||
+      !image2 ||
+      !image3 ||
+      !image4
+    ) {
+      alert("All fields & 4 images are required");
+      return;
+    }
+
+    if (isWearable && sizes.length === 0) {
+      alert("Please select at least one size");
+      return;
+    }
+
+    setLoading(true);
+    const formData = new FormData();
+    formData.append("title", title);
+    formData.append("description", description);
+    formData.append("price", price);
+    formData.append("stock", stock);
+    formData.append(
+      "category",
+      category === "Others" ? customCategory : category,
+    );
+
+    formData.append("isWearable", String(isWearable));
+    sizes.forEach((size) => formData.append("sizes", size));
+
+    formData.append("replacementDays", replacementDays);
+    formData.append("freeDelivery", String(freeDelivery));
+    formData.append("warranty", warranty);
+    formData.append("payOnDelivery", String(payOnDelivery));
+    detailPoints.forEach((point) => formData.append("detailsPoints", point));
+
+    if (image1 && image2 && image3 && image4) {
+      formData.append("image1", image1);
+      formData.append("image2", image2);
+      formData.append("image3", image3);
+      formData.append("image4", image4);
+    }
+    try {
+      const result = await axios.post("/api/vendor/addProduct", formData);
+      console.log(result.data);
+      setLoading(false);
+      alert("✅ Product added successfully. Waiting for admin approval.");
+      router.push("/");
+    } catch (error) {
+      setLoading(false);
+      console.log("Add Product Error: ", error);
+      alert("❌Product add failed");
+    }
   };
 
   return (
@@ -562,9 +626,11 @@ function AddVendorProduct() {
                 boxShadow: "0 20px 25px -5px rgba(59, 130, 246, 0.4)",
               }}
               whileTap={{ scale: 0.98 }}
+              onClick={handleSubmit}
+              disabled={loading}
               className="w-full bg-linear-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 py-4 rounded-xl font-bold text-lg transition-all duration-300 shadow-lg shadow-blue-600/30 text-white"
             >
-              Add Product
+              {loading ? <ClipLoader size={20} color="white" /> : "Add Product"}
             </motion.button>
           </motion.div>
         </motion.div>
