@@ -117,7 +117,7 @@ function AddVendorProduct() {
     formData.append("freeDelivery", String(freeDelivery));
     formData.append("warranty", warranty);
     formData.append("payOnDelivery", String(payOnDelivery));
-    detailPoints.forEach((point) => formData.append("detailsPoints", point));
+    detailPoints.forEach((point) => formData.append("detailPoints", point));
 
     if (image1 && image2 && image3 && image4) {
       formData.append("image1", image1);
@@ -130,7 +130,7 @@ function AddVendorProduct() {
       console.log(result.data);
       setLoading(false);
       alert("✅ Product added successfully. Waiting for admin approval.");
-      router.push("/");
+      window.location.href = "/";
     } catch (error) {
       setLoading(false);
       console.log("Add Product Error: ", error);
