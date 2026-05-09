@@ -2,6 +2,7 @@
 import React, { useState } from 'react'
 import { IUser } from '@/model/user.model'
 import { useRouter } from 'next/navigation'
+import { useCart } from '@/context/CartContext'
 import logo from '@/assets/logo.png'
 import Image from 'next/image'
 import { button, div } from 'motion/react-client'
@@ -27,6 +28,7 @@ function Navbar({user}: {user: IUser}) {
     const router = useRouter();
     const [openMenu, setOpenMenu] = useState(false);
     const [sideBarOpen, setSideBarOpen] = useState(false);
+    const { cartCount } = useCart();
   return (
     <div className='fixed top-0 left-0 w-full bg-linear-to-r from-black via-black to-gray-900 text-white z-50 shadow-lg border-b border-blue-500/20'>
         <div className='max-w-7xl mx-auto px-6 py-4 flex justify-between items-center'>
@@ -89,7 +91,7 @@ function Navbar({user}: {user: IUser}) {
                     </AnimatePresence>
                 </div>
                 
-                {user?.role == "user" && <CartBtn router={router} count="5"/> }
+                {user?.role == "user" && <CartBtn router={router} count={cartCount}/> }
             </div>
 
             {/* mobile icons */}
@@ -137,7 +139,7 @@ function Navbar({user}: {user: IUser}) {
                     <>
                         <IconBtn Icon={AiOutlineSearch} onClick={()=>router.push("/category")}/>
                         <IconBtn Icon={AiOutlinePhone} onclick={()=>router.push("/support")}/>
-                        <CartBtn router={router} count="5"/>
+                        <CartBtn router={router} count={cartCount}/>
                         <motion.div 
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.95 }}
