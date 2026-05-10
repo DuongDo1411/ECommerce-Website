@@ -17,7 +17,7 @@ export async function GET() {
       .select("cart")
       .populate({
         path: "cart.product",
-        select: "title price image1 stock isStockAvailable vendor",
+        select: "title price image1 stock isStockAvailable freeDelivery payOnDelivery vendor",
         populate: { path: "vendor", select: "shopName name" },
       });
 

@@ -59,9 +59,7 @@ export default function CartPage() {
       });
       setCart((prev) =>
         prev.map((item) =>
-          item.product._id === productId
-            ? { ...item, quantity: newQty }
-            : item,
+          item.product._id === productId ? { ...item, quantity: newQty } : item,
         ),
       );
     } finally {
@@ -116,9 +114,7 @@ export default function CartPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
         >
-          <h2 className="text-xl font-bold text-white mb-1">
-            Giỏ hàng trống
-          </h2>
+          <h2 className="text-xl font-bold text-white mb-1">Giỏ hàng trống</h2>
           <p className="text-gray-500 text-sm mb-5">
             Bạn chưa thêm sản phẩm nào vào giỏ hàng
           </p>
@@ -157,9 +153,7 @@ export default function CartPage() {
           className="flex items-center gap-3 mb-8"
         >
           <div className="w-1 h-7 bg-blue-500 rounded-full" />
-          <h1 className="text-2xl sm:text-3xl font-bold">
-            Giỏ hàng của bạn
-          </h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Giỏ hàng của bạn</h1>
           <span className="ml-1 bg-blue-600/30 text-blue-400 text-xs font-bold px-2.5 py-1 rounded-full border border-blue-500/30">
             {totalItems} sản phẩm
           </span>
@@ -188,7 +182,7 @@ export default function CartPage() {
                   }`}
                 >
                   {/* Product Image */}
-                  <Link href={`/product/${pid}`} className="flex-shrink-0">
+                  <Link href={`/product/${pid}`} className="shrink-0">
                     <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-gray-900 border border-white/10">
                       <img
                         src={item.product.image1}
@@ -302,7 +296,7 @@ export default function CartPage() {
                     {item.product.title}{" "}
                     <span className="text-gray-600">×{item.quantity}</span>
                   </span>
-                  <span className="text-white font-medium flex-shrink-0">
+                  <span className="text-white font-medium shrink-0">
                     {(item.product.price * item.quantity).toLocaleString(
                       "vi-VN",
                     )}
@@ -348,8 +342,7 @@ export default function CartPage() {
               disabled={checkingOut}
               onClick={() => {
                 setCheckingOut(true);
-                // TODO: navigate to checkout page
-                setTimeout(() => setCheckingOut(false), 1500);
+                router.push("/checkout");
               }}
               className="w-full py-3.5 rounded-2xl font-bold text-sm tracking-wide bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
             >
