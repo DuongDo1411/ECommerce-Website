@@ -10,7 +10,8 @@ import { useSelector, useDispatch } from "react-redux";
 import { AppDispatch } from "@/redux/store";
 import { setAllProductsData } from "@/redux/vendorSlice";
 import axios from "axios";
-import { FiUpload, FiX, FiCheck, FiSend } from "react-icons/fi";
+import { FiUpload, FiX, FiCheck, FiSend, FiEdit2, FiToggleLeft, FiToggleRight } from "react-icons/fi";
+import { FaBoxOpen, FaCheckCircle, FaClock, FaTag, FaLayerGroup } from "react-icons/fa";
 import { ClipLoader } from "react-spinners";
 import { IProduct } from "@/model/product.model";
 
@@ -214,15 +215,14 @@ function VendorProducts() {
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
         >
           <div>
-            <p className="text-xs font-semibold tracking-[0.2em] uppercase text-blue-400/70 mb-1">
+            <p className="text-xs font-semibold tracking-[0.2em] uppercase text-emerald-400/70 mb-1">
               Vendor Dashboard
             </p>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
               My Products
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {myProducts.length} product{myProducts.length !== 1 ? "s" : ""}{" "}
-              listed
+              {myProducts.length} sản phẩm đã đăng
             </p>
           </div>
 
@@ -233,26 +233,16 @@ function VendorProducts() {
             className="relative flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm overflow-hidden group"
             style={{
               background:
-                "linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%)",
+                "linear-gradient(135deg, #059669 0%, #047857 50%, #065f46 100%)",
               boxShadow:
-                "0 0 24px rgba(37,99,235,0.35), inset 0 1px 0 rgba(255,255,255,0.1)",
+                "0 0 24px rgba(5,150,105,0.35), inset 0 1px 0 rgba(255,255,255,0.1)",
             }}
           >
             <span className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-all duration-300 rounded-xl" />
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M12 4v16m8-8H4"
-              />
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
             </svg>
-            Add Product
+            Thêm sản phẩm
           </motion.button>
         </motion.div>
 
@@ -266,78 +256,79 @@ function VendorProducts() {
           >
             {[
               {
-                label: "Total",
+                label: "Tổng SP",
                 value: myProducts.length,
                 color: "text-blue-400",
-                glow: "rgba(59,130,246,0.2)",
+                glow: "rgba(59,130,246,0.15)",
+                border: "rgba(59,130,246,0.2)",
+                Icon: FaLayerGroup,
+                iconColor: "text-blue-400",
+                iconBg: "bg-blue-500/10",
               },
               {
-                label: "Active",
+                label: "Đang bán",
                 value: myProducts.filter((p: any) => p.isActive).length,
                 color: "text-emerald-400",
-                glow: "rgba(52,211,153,0.2)",
+                glow: "rgba(52,211,153,0.15)",
+                border: "rgba(52,211,153,0.2)",
+                Icon: FaCheckCircle,
+                iconColor: "text-emerald-400",
+                iconBg: "bg-emerald-500/10",
               },
               {
-                label: "Pending",
-                value: myProducts.filter(
-                  (p: any) => p.verificationStatus === "pending",
-                ).length,
+                label: "Chờ duyệt",
+                value: myProducts.filter((p: any) => p.verificationStatus === "pending").length,
                 color: "text-amber-400",
-                glow: "rgba(251,191,36,0.2)",
+                glow: "rgba(251,191,36,0.15)",
+                border: "rgba(251,191,36,0.2)",
+                Icon: FaClock,
+                iconColor: "text-amber-400",
+                iconBg: "bg-amber-500/10",
               },
             ].map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-xl border border-white/6 p-4"
+                className="rounded-2xl border p-4 flex items-center gap-3"
                 style={{
-                  background:
-                    "linear-gradient(145deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))",
+                  background: "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))",
+                  borderColor: stat.border,
                   boxShadow: `inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 20px ${stat.glow}`,
                 }}
               >
-                <p className="text-xs text-slate-500 uppercase tracking-widest mb-1">
-                  {stat.label}
-                </p>
-                <p className={`text-2xl font-bold ${stat.color}`}>
-                  {stat.value}
-                </p>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${stat.iconBg}`}>
+                  <stat.Icon size={18} className={stat.iconColor} />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-widest">{stat.label}</p>
+                  <p className={`text-2xl font-bold leading-tight ${stat.color}`}>{stat.value}</p>
+                </div>
               </div>
             ))}
           </motion.div>
         )}
 
-        {/* ── Desktop Table ── */}
+        {/* ── Desktop Table (md+) ── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15 }}
-          className="hidden md:block rounded-2xl border border-white/6 overflow-hidden"
+          className="hidden md:block rounded-2xl border border-white/8 overflow-hidden"
           style={{
-            background:
-              "linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)",
-            boxShadow:
-              "0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
+            background: "linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
           }}
         >
           <table className="w-full text-left">
             <thead>
-              <tr
-                style={{
-                  background:
-                    "linear-gradient(90deg, rgba(37,99,235,0.12) 0%, rgba(37,99,235,0.03) 60%, transparent 100%)",
-                  borderBottom: "1px solid rgba(59,130,246,0.12)",
-                }}
-              >
-                {["Image", "Title", "Price", "Status", "Active", "Actions"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-5 py-4 text-xs font-semibold tracking-[0.15em] uppercase text-slate-400"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+              <tr style={{
+                background: "linear-gradient(90deg, rgba(5,150,105,0.1) 0%, rgba(5,150,105,0.03) 60%, transparent 100%)",
+                borderBottom: "1px solid rgba(5,150,105,0.15)",
+              }}>
+                {["Ảnh", "Tên sản phẩm", "Giá / Tồn kho", "Trạng thái", "Hiển thị", "Thao tác"].map((h) => (
+                  <th key={h} className="px-5 py-4 text-xs font-semibold tracking-[0.12em] uppercase text-slate-400">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -350,18 +341,10 @@ function VendorProducts() {
                         transition={{ duration: 2.5, repeat: Infinity }}
                         className="flex flex-col items-center gap-3"
                       >
-                        <div
-                          className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl"
-                          style={{
-                            background: "rgba(37,99,235,0.1)",
-                            border: "1px solid rgba(37,99,235,0.2)",
-                          }}
-                        >
-                          📦
+                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)" }}>
+                          <FaBoxOpen size={28} className="text-emerald-500/60" />
                         </div>
-                        <p className="text-slate-500 text-sm">
-                          No products yet. Add your first product!
-                        </p>
+                        <p className="text-slate-500 text-sm">Chưa có sản phẩm nào. Hãy thêm sản phẩm đầu tiên!</p>
                       </motion.div>
                     </td>
                   </tr>
@@ -374,126 +357,90 @@ function VendorProducts() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05, duration: 0.4 }}
-                        className="group border-t border-white/4 transition-all duration-200"
-                        style={{ cursor: "default" }}
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            "rgba(37,99,235,0.04)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            "transparent";
-                        }}
+                        className="group border-t border-white/5 transition-all duration-200 hover:bg-emerald-500/4"
                       >
                         {/* Image */}
                         <td className="px-5 py-4">
-                          <div className="relative w-12 h-12 rounded-xl overflow-hidden ring-1 ring-white/10 group-hover:ring-blue-500/30 transition-all">
-                            <Image
-                              src={p?.image1}
-                              alt="img1"
-                              fill
-                              className="object-cover"
-                            />
+                          <div className="relative w-14 h-14 rounded-xl overflow-hidden ring-1 ring-white/10 group-hover:ring-emerald-500/40 transition-all duration-300">
+                            <Image src={p?.image1} alt="img1" fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
                           </div>
                         </td>
 
-                        {/* Title */}
+                        {/* Title + category */}
                         <td className="px-5 py-4">
-                          <p className="text-sm font-medium text-slate-200 truncate max-w-[180px]">
-                            {p?.title}
+                          <p className="text-sm font-semibold text-slate-200 truncate max-w-[200px]">{p?.title}</p>
+                          {p?.category && (
+                            <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-slate-500 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                              <FaTag size={8} /> {p.category}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Price + Stock */}
+                        <td className="px-5 py-4">
+                          <p className="text-sm font-bold text-white">
+                            $<span className="text-emerald-400 ml-0.5">{p?.price}</span>
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Còn: <span className={`font-semibold ${p?.stock > 5 ? "text-slate-300" : "text-rose-400"}`}>{p?.stock ?? 0}</span>
                           </p>
                         </td>
 
-                        {/* Price */}
+                        {/* Verification Status */}
                         <td className="px-5 py-4">
-                          <span className="text-sm font-semibold text-white">
-                            $ <span className="text-blue-300">{p?.price}</span>
-                          </span>
-                        </td>
-
-                        {/* Status */}
-                        <td className="px-5 py-4">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${statusCfg.bg} ${statusCfg.border} ${statusCfg.text} border`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot} animate-pulse`}
-                            />
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${statusCfg.bg} ${statusCfg.border} ${statusCfg.text} border`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot} animate-pulse`} />
                             {statusCfg.label}
                           </span>
+                          {p.verificationStatus === "rejected" && p.rejectedReason && (
+                            <p className="text-[10px] text-red-400/70 mt-1 max-w-[160px] truncate" title={p.rejectedReason}>
+                              ↳ {p.rejectedReason}
+                            </p>
+                          )}
                         </td>
 
-                        {/* Active */}
+                        {/* Active indicator */}
                         <td className="px-5 py-4">
-                          <span
-                            className={`inline-flex items-center gap-1.5 text-xs font-medium ${p.isActive ? "text-emerald-400" : "text-slate-500"}`}
-                          >
-                            <span
-                              className={`w-2 h-2 rounded-full ${p.isActive ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-slate-600"}`}
-                            />
+                          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all
+                            ${p.isActive
+                              ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
+                              : "bg-slate-700/30 border-slate-600/20 text-slate-500"}`}>
+                            <span className={`w-2 h-2 rounded-full ${p.isActive ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-slate-600"}`} />
                             {p?.isActive ? "Active" : "Inactive"}
-                          </span>
+                          </div>
                         </td>
 
                         {/* Actions */}
                         <td className="px-5 py-4">
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex gap-2">
-                              <motion.button
-                                whileHover={{ scale: 1.04 }}
-                                whileTap={{ scale: 0.96 }}
-                                onClick={() => openEdit(p)}
-                                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-violet-600/80 hover:bg-violet-500 text-white transition-colors border border-violet-500/30"
-                              >
-                                Edit
-                              </motion.button>
-                              <motion.button
-                                whileHover={{
-                                  scale: toggleLoading[String(p._id)]
-                                    ? 1
-                                    : 1.04,
-                                }}
-                                whileTap={{ scale: 0.96 }}
-                                disabled={
-                                  p.verificationStatus !== "approved" ||
-                                  !!toggleLoading[String(p._id)]
-                                }
-                                onClick={() => handleToggleActive(p)}
-                                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors border flex items-center gap-1.5 ${
-                                  p.verificationStatus === "approved"
-                                    ? p.isActive
-                                      ? "bg-rose-600/80 hover:bg-rose-500 text-white border-rose-500/30"
-                                      : "bg-emerald-600/80 hover:bg-emerald-500 text-white border-emerald-500/30"
-                                    : "bg-slate-700/50 text-slate-500 cursor-not-allowed border-slate-600/20"
-                                }`}
-                              >
-                                {toggleLoading[String(p._id)] ? (
-                                  <ClipLoader size={11} color="white" />
-                                ) : p.isActive ? (
-                                  "Disable"
-                                ) : (
-                                  "Enable"
-                                )}
-                              </motion.button>
-                            </div>
-
-                            {p.verificationStatus === "rejected" && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                className="bg-red-500/8 border border-red-500/20 text-red-300 text-xs p-2.5 rounded-lg"
-                              >
-                                <p className="font-semibold text-red-400 mb-0.5">
-                                  Reason:{" "}
-                                  <span className="font-normal">
-                                    {p.rejectedReason || "No reason provided"}
-                                  </span>
-                                </p>
-                                <p className="text-amber-400/80">
-                                  ✏️ Edit to re-submit for review.
-                                </p>
-                              </motion.div>
-                            )}
+                          <div className="flex items-center gap-2">
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => openEdit(p)}
+                              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 border border-violet-500/30 transition-all"
+                            >
+                              <FiEdit2 size={12} /> Edit
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: toggleLoading[String(p._id)] ? 1 : 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              disabled={p.verificationStatus !== "approved" || !!toggleLoading[String(p._id)]}
+                              onClick={() => handleToggleActive(p)}
+                              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all
+                                ${p.verificationStatus === "approved"
+                                  ? p.isActive
+                                    ? "bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border-rose-500/30"
+                                    : "bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border-emerald-500/30"
+                                  : "bg-slate-700/30 text-slate-600 cursor-not-allowed border-slate-600/15"}`}
+                            >
+                              {toggleLoading[String(p._id)] ? (
+                                <ClipLoader size={11} color="white" />
+                              ) : p.isActive ? (
+                                <><FiToggleLeft size={13} /> Disable</>
+                              ) : (
+                                <><FiToggleRight size={13} /> Enable</>
+                              )}
+                            </motion.button>
                           </div>
                         </td>
                       </motion.tr>
@@ -505,7 +452,7 @@ function VendorProducts() {
           </table>
         </motion.div>
 
-        {/* ── Mobile Cards ── */}
+        {/* ── Mobile Cards (< md) ── */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -518,18 +465,10 @@ function VendorProducts() {
               transition={{ duration: 2.5, repeat: Infinity }}
               className="flex flex-col items-center gap-3 mt-14"
             >
-              <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl"
-                style={{
-                  background: "rgba(37,99,235,0.1)",
-                  border: "1px solid rgba(37,99,235,0.2)",
-                }}
-              >
-                📦
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)" }}>
+                <FaBoxOpen size={28} className="text-emerald-500/60" />
               </div>
-              <p className="text-slate-500 text-sm">
-                No products yet. Add your first product!
-              </p>
+              <p className="text-slate-500 text-sm">Chưa có sản phẩm nào!</p>
             </motion.div>
           ) : (
             myProducts.map((p: any, index: number) => {
@@ -540,51 +479,38 @@ function VendorProducts() {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.06, duration: 0.4 }}
-                  whileHover={{ y: -2 }}
-                  className="rounded-2xl border border-white/6 p-4 transition-all"
+                  className="rounded-2xl border border-white/8 overflow-hidden"
                   style={{
-                    background:
-                      "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))",
-                    boxShadow:
-                      "0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)",
+                    background: "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))",
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)",
                   }}
                 >
-                  <div className="flex gap-4">
-                    {/* Thumbnail */}
-                    <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/10">
-                      <Image
-                        src={p.image1}
-                        alt="product"
-                        fill
-                        className="object-cover"
-                      />
+                  {/* Card top */}
+                  <div className="flex gap-4 p-4">
+                    <div className="relative w-20 h-20 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/10">
+                      <Image src={p.image1} alt="product" fill className="object-cover" />
                     </div>
-
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white text-sm truncate">
-                        {p.title}
-                      </h3>
-                      <p className="text-blue-300 font-bold text-base mt-0.5">
-                        $ {p.price}
-                      </p>
-
+                      <h3 className="font-semibold text-white text-sm truncate">{p.title}</h3>
+                      {p?.category && (
+                        <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-slate-500 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                          <FaTag size={8} /> {p.category}
+                        </span>
+                      )}
+                      <div className="flex items-center gap-3 mt-2">
+                        <p className="text-emerald-400 font-bold text-base">${p.price}</p>
+                        <p className="text-xs text-slate-500">
+                          Còn: <span className={`font-semibold ${p?.stock > 5 ? "text-slate-300" : "text-rose-400"}`}>{p?.stock ?? 0}</span>
+                        </p>
+                      </div>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${statusCfg.bg} ${statusCfg.border} ${statusCfg.text} border`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`}
-                          />
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${statusCfg.bg} ${statusCfg.border} ${statusCfg.text} border`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
                           {statusCfg.label}
                         </span>
-
-                        <span
-                          className={`inline-flex items-center gap-1 text-xs font-medium ${p.isActive ? "text-emerald-400" : "text-slate-500"}`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${p.isActive ? "bg-emerald-400" : "bg-slate-600"}`}
-                          />
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border
+                          ${p.isActive ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400" : "bg-slate-700/30 border-slate-600/20 text-slate-500"}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${p.isActive ? "bg-emerald-400" : "bg-slate-600"}`} />
                           {p.isActive ? "Active" : "Inactive"}
                         </span>
                       </div>
@@ -592,53 +518,40 @@ function VendorProducts() {
                   </div>
 
                   {p.verificationStatus === "rejected" && (
-                    <div className="mt-3 bg-red-500/8 border border-red-500/20 text-red-300 text-xs p-3 rounded-xl">
+                    <div className="mx-4 mb-3 bg-red-500/8 border border-red-500/20 text-red-300 text-xs p-3 rounded-xl">
                       <p className="font-semibold text-red-400">
-                        Rejected:{" "}
-                        <span className="font-normal">
-                          {p.rejectedReason || "No reason provided"}
-                        </span>
+                        Từ chối: <span className="font-normal">{p.rejectedReason || "Không có lý do"}</span>
                       </p>
-                      <p className="mt-1 text-amber-400/80">
-                        ✏️ Edit to re-submit for review.
-                      </p>
+                      <p className="mt-1 text-amber-400/80">✏️ Chỉnh sửa để gửi lại duyệt.</p>
                     </div>
                   )}
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 mt-4">
+                  {/* Action footer */}
+                  <div className="grid grid-cols-2 divide-x divide-white/8 border-t border-white/8">
                     <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
+                      whileTap={{ scale: 0.96 }}
                       onClick={() => openEdit(p)}
-                      className="flex-1 py-2 rounded-xl text-xs font-semibold bg-violet-600/80 hover:bg-violet-500 text-white transition-colors border border-violet-500/30"
+                      className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-violet-400 hover:bg-violet-500/10 transition-colors"
                     >
-                      Edit
+                      <FiEdit2 size={13} /> Chỉnh sửa
                     </motion.button>
                     <motion.button
-                      whileHover={{
-                        scale: toggleLoading[String(p._id)] ? 1 : 1.03,
-                      }}
-                      whileTap={{ scale: 0.97 }}
-                      disabled={
-                        p.verificationStatus !== "approved" ||
-                        !!toggleLoading[String(p._id)]
-                      }
+                      whileTap={{ scale: 0.96 }}
+                      disabled={p.verificationStatus !== "approved" || !!toggleLoading[String(p._id)]}
                       onClick={() => handleToggleActive(p)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors border flex items-center justify-center gap-1.5 ${
-                        p.verificationStatus === "approved"
+                      className={`flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-colors
+                        ${p.verificationStatus === "approved"
                           ? p.isActive
-                            ? "bg-rose-600/80 hover:bg-rose-500 text-white border-rose-500/30"
-                            : "bg-emerald-600/80 hover:bg-emerald-500 text-white border-emerald-500/30"
-                          : "bg-slate-700/50 text-slate-500 cursor-not-allowed border-slate-600/20"
-                      }`}
+                            ? "text-rose-400 hover:bg-rose-500/10"
+                            : "text-emerald-400 hover:bg-emerald-500/10"
+                          : "text-slate-600 cursor-not-allowed"}`}
                     >
                       {toggleLoading[String(p._id)] ? (
                         <ClipLoader size={11} color="white" />
                       ) : p.isActive ? (
-                        "Disable"
+                        <><FiToggleLeft size={14} /> Tắt</>
                       ) : (
-                        "Enable"
+                        <><FiToggleRight size={14} /> Bật</>
                       )}
                     </motion.button>
                   </div>

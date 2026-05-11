@@ -51,6 +51,7 @@ export default function CheckoutPage() {
   type PayMethod = "cod" | "stripe";
   const [payMethod, setPayMethod] = useState<PayMethod>("cod");
   const [placing, setPlacing] = useState(false);
+  const [orderError, setOrderError] = useState("");
 
   /* ── Fetch cart ── */
   const fetchCart = useCallback(async () => {
@@ -102,6 +103,57 @@ export default function CheckoutPage() {
 
   /* COD availability */
   const codAllowed = cart.every((i) => i.product.payOnDelivery !== false);
+
+  /* ── Place COD order ── */
+  const handlePlaceOrder = async () => {
+    if (payMethod !== "cod") return;
+    setPlacing(true);
+    setOrderError("");
+    try {
+      const addrPayload = {
+        name: fullName,
+        phone,
+        address,
+        city,
+        pincode: pinCode,
+      };
+
+      for (let i = 0; i < cart.length; i++) {
+        const item = cart[i];
+        const itemDelivery = item.product.freeDelivery
+          ? 0
+          : DELIVERY_FEE_PER_ITEM * item.quantity;
+        const itemService = i === 0 ? SERVICE_CHARGE : 0;
+        const itemTotal =
+          item.product.price * item.quantity + itemDelivery + itemService;
+
+        const res = await fetch("/api/orders/cod", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId: item.product._id,
+            quantity: item.quantity,
+            address: addrPayload,
+            amount: itemTotal,
+            deliveryCharge: itemDelivery,
+            serviceCharge: itemService,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.message ?? "Có lỗi xảy ra khi đặt hàng");
+        }
+      }
+
+      router.push("/orders");
+    } catch (err: unknown) {
+      setOrderError(
+        err instanceof Error ? err.message : "Đặt hàng thất bại, vui lòng thử lại",
+      );
+      setPlacing(false);
+    }
+  };
 
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
 
@@ -528,11 +580,7 @@ export default function CheckoutPage() {
                 !city.trim() ||
                 !pinCode.trim()
               }
-              onClick={() => {
-                setPlacing(true);
-                // TODO: logic đặt hàng
-                setTimeout(() => setPlacing(false), 2000);
-              }}
+              onClick={handlePlaceOrder}
               className={`w-full py-3.5 rounded-2xl font-bold text-sm tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${
                 placing ||
                 !fullName.trim() ||
@@ -563,6 +611,13 @@ export default function CheckoutPage() {
                 </>
               )}
             </motion.button>
+
+            {/* Order error */}
+            {orderError && (
+              <p className="text-center text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                {orderError}
+              </p>
+            )}
 
             {/* Form validation hint */}
             {(!fullName.trim() ||
