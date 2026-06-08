@@ -37,14 +37,19 @@ function EditRole_Phone() {
             alert("please select the role and enter the phone number");
             return;
         }
+        if (!/^0\d{9}$/.test(phone.trim())) {
+            alert("Số điện thoại không hợp lệ — phải gồm 10 chữ số và bắt đầu bằng 0 (VD: 0901234567). GHN dùng số này để liên hệ lấy hàng.");
+            return;
+        }
         setLoading(true);
         try {
             const result = await axios.post("api/user/edit-role-phone", { role, phone });
             alert(result.data.message);
             setLoading(false);
             router.push("/");
-        } catch (error) {
+        } catch (error: any) {
             setLoading(false);
+            alert(error?.response?.data?.message ?? "Có lỗi xảy ra, vui lòng thử lại");
             console.log(error);
         }
     }
@@ -81,12 +86,13 @@ function EditRole_Phone() {
                         <div className="relative group">
                             <AiOutlinePhone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
                             <input
-                                type="text"
-                                placeholder='Enter your phone number'
+                                type="tel"
+                                inputMode="numeric"
+                                placeholder='Enter your phone number (VD: 0901234567)'
                                 maxLength={10}
                                 required
                                 className='w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:bg-white/10 transition-all placeholder:text-gray-600'
-                                onChange={(e) => setPhone(e.target.value)}
+                                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                                 value={phone}
                             />
                         </div>

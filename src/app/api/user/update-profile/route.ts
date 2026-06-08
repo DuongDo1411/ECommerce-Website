@@ -25,6 +25,15 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    if (!/^0\d{9}$/.test(phone.trim())) {
+      return NextResponse.json(
+        {
+          message:
+            "Số điện thoại không hợp lệ — phải gồm 10 chữ số và bắt đầu bằng 0 (VD: 0901234567)",
+        },
+        { status: 400 },
+      );
+    }
     let imageUrl;
     if (file) {
       imageUrl = await uploadOnCloudinary(file);

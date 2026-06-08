@@ -3,7 +3,7 @@ import connectDB from "@/lib/connectDB";
 import User from "@/model/user.model";
 import { NextResponse } from "next/server";
 
-// PATCH /api/user/cart/[productId] — Cập nhật số lượng
+// PATCH /api/user/cart/[productId]?size=M — Cập nhật số lượng
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ productId: string }> },
@@ -16,6 +16,7 @@ export async function PATCH(
     }
 
     const { productId } = await params;
+    const size = new URL(req.url).searchParams.get("size") ?? undefined;
     const { quantity } = await req.json();
 
     if (!quantity || quantity < 1) {
@@ -28,7 +29,9 @@ export async function PATCH(
     }
 
     const item = user.cart?.find(
-      (c: any) => c.product?.toString() === productId,
+      (c: any) =>
+        c.product?.toString() === productId &&
+        (c.size ?? null) === (size ?? null),
     );
     if (!item) {
       return NextResponse.json({ message: "Sản phẩm không có trong giỏ" }, { status: 404 });
@@ -43,9 +46,9 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/user/cart/[productId] — Xóa sản phẩm khỏi giỏ
+// DELETE /api/user/cart/[productId]?size=M — Xóa sản phẩm khỏi giỏ
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ productId: string }> },
 ) {
   try {
@@ -56,6 +59,7 @@ export async function DELETE(
     }
 
     const { productId } = await params;
+    const size = new URL(req.url).searchParams.get("size") ?? undefined;
 
     const user = await User.findById(session.user.id);
     if (!user) {
@@ -63,7 +67,11 @@ export async function DELETE(
     }
 
     user.cart = (user.cart ?? []).filter(
-      (c: any) => c.product?.toString() !== productId,
+      (c: any) =>
+        !(
+          c.product?.toString() === productId &&
+          (c.size ?? null) === (size ?? null)
+        ),
     );
     await user.save();
 

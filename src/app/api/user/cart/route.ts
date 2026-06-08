@@ -17,7 +17,7 @@ export async function GET() {
       .select("cart")
       .populate({
         path: "cart.product",
-        select: "title price image1 stock isStockAvailable freeDelivery payOnDelivery vendor",
+        select: "title price image1 stock isStockAvailable sizeStock freeDelivery payOnDelivery vendor isWearable",
         populate: { path: "vendor", select: "shopName name" },
       });
 
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const { productId, quantity = 1 } = await req.json();
+    const { productId, quantity = 1, size } = await req.json();
     if (!productId) {
       return NextResponse.json(
         { message: "productId is required" },
@@ -49,9 +49,27 @@ export async function POST(req: Request) {
     }
 
     const product = await Product.findById(productId);
-    if (!product || !product.isStockAvailable) {
+    if (!product) {
       return NextResponse.json(
-        { message: "Sản phẩm không tồn tại hoặc đã hết hàng" },
+        { message: "Sản phẩm không tồn tại" },
+        { status: 400 },
+      );
+    }
+
+    // Kiểm tra tồn kho theo size (wearable) hoặc tổng (non-wearable)
+    if (product.isWearable && size) {
+      const sizeEntry = (product.sizeStock ?? []).find(
+        (s: { size: string; stock: number }) => s.size === size,
+      );
+      if (!sizeEntry || sizeEntry.stock === 0) {
+        return NextResponse.json(
+          { message: `Size ${size} đã hết hàng` },
+          { status: 400 },
+        );
+      }
+    } else if (!product.isStockAvailable) {
+      return NextResponse.json(
+        { message: "Sản phẩm đã hết hàng" },
         { status: 400 },
       );
     }
@@ -62,18 +80,26 @@ export async function POST(req: Request) {
     }
 
     user.cart = user.cart ?? [];
+
+    // Tìm cart item theo (productId, size) — cùng sản phẩm khác size là 2 dòng riêng
     const existingIndex = user.cart.findIndex(
-      (item: any) => item.product?.toString() === productId,
+      (item: any) =>
+        item.product?.toString() === productId &&
+        (item.size ?? null) === (size ?? null),
     );
 
     if (existingIndex >= 0) {
-      // Tăng số lượng nếu đã có
+      const maxStock = product.isWearable && size
+        ? ((product.sizeStock ?? []).find(
+            (s: { size: string; stock: number }) => s.size === size,
+          )?.stock ?? 99)
+        : (product.stock ?? 99);
       user.cart[existingIndex].quantity = Math.min(
         (user.cart[existingIndex].quantity ?? 1) + quantity,
-        product.stock ?? 99,
+        maxStock,
       );
     } else {
-      user.cart.push({ product: productId, quantity });
+      user.cart.push({ product: productId, quantity, ...(size ? { size } : {}) });
     }
 
     await user.save();

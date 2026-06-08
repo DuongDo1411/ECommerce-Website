@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { TbPlayerTrackNext } from "react-icons/tb";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { ClipLoader } from 'react-spinners';
 import { signIn } from 'next-auth/react';
+import { ToastContainer, type ToastData } from '../component/Toast';
 
 function Register() {
     const [step, setStep] = useState<1 | 2>(1)
@@ -17,31 +18,33 @@ function Register() {
     const [showPassword, setShowPassword] = useState(false)
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [toast, setToast] = useState<ToastData | null>(null);
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const result = await axios.post("/api/auth/register", {
-                name,
-                email,
-                password,
-            });
-            console.log(result.data);
+            await axios.post("/api/auth/register", { name, email, password });
             setLoading(false);
             setEmail("");
             setName("");
             setPassword("");
-            router.push("/login");
-        } catch (error) {
+            setToast({ message: "Đăng ký thành công! Đang chuyển đến trang đăng nhập...", type: "success" });
+            setTimeout(() => router.push("/login"), 1800);
+        } catch (error: unknown) {
             console.log(error);
             setLoading(false);
+            const msg =
+                axios.isAxiosError(error) && error.response?.data?.message
+                    ? error.response.data.message
+                    : "Đăng ký thất bại. Vui lòng thử lại.";
+            setToast({ message: msg, type: "error" });
         }
     };
 
     return (
         <div className='relative min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white p-6 overflow-hidden'>
-            {/* Background Glow Effects (Modern Minimalist vibe) */}
+            {/* Background Glow Effects */}
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none" />
 
@@ -62,7 +65,7 @@ function Register() {
                         <p className='text-gray-400 mb-8 text-sm sm:text-base'>
                             Vui lòng chọn loại tài khoản để bắt đầu
                         </p>
-                        
+
                         <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8'>
                             {[
                                 { label: "User", icon: "👤", color: "from-blue-500/20 to-cyan-500/20 border-blue-500/30", value: "User" },
@@ -105,7 +108,7 @@ function Register() {
                         <h1 className='text-3xl font-bold mb-8 text-center text-white'>
                             Tạo tài khoản
                         </h1>
-                        
+
                         <form onSubmit={handleSignUp} className='flex flex-col gap-5'>
                             {/* Input Name */}
                             <input
@@ -116,7 +119,7 @@ function Register() {
                                 value={name}
                                 className='w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all'
                             />
-                            
+
                             {/* Input Email */}
                             <input
                                 type="email"
@@ -126,8 +129,8 @@ function Register() {
                                 value={email}
                                 className='w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all'
                             />
-                            
-                            {/* Input Password (Fixed Position for Icon) */}
+
+                            {/* Input Password */}
                             <div className='relative w-full'>
                                 <input
                                     type={showPassword ? "text" : "password"}
@@ -172,7 +175,7 @@ function Register() {
                                 whileTap={{ scale: 0.98 }}
                                 className='w-full flex items-center justify-center gap-3 py-4 bg-white/5 border border-white/10 rounded-xl transition-all'
                             >
-                                <FcGoogle size={24} /> 
+                                <FcGoogle size={24} />
                                 <span className='font-medium text-gray-200'>Tiếp tục với Google</span>
                             </motion.button>
 
@@ -189,6 +192,9 @@ function Register() {
                     </motion.div>
                 }
             </AnimatePresence>
+
+            {/* ── Toast notification ── */}
+            <ToastContainer toast={toast} onClose={() => setToast(null)} />
         </div>
     )
 }

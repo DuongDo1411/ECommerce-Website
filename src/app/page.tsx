@@ -25,8 +25,14 @@ export default async function Home() {
     return <EditRole_Phone />;
   }
   if (user?.role == "vendor") {
+    // Also require the GHN-structured pickup address; legacy vendors that
+    // only have the old free-text shopAddress must (re)complete this form.
     const isCompleteDetails =
-      !user.shopName || !user.shopAddress || !user.taxNumber;
+      !user.shopName ||
+      !user.shopAddress ||
+      !user.taxNumber ||
+      !user.shopAddressDetail?.districtId ||
+      !user.shopAddressDetail?.wardCode;
     if (isCompleteDetails) {
       return <EditVendorDetails />;
     }

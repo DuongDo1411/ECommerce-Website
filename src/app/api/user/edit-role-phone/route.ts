@@ -7,8 +7,16 @@ export async function POST(req: NextRequest) {
     try {
         await connectDB();
         const {phone , role} = await req.json();
+
+        const normalizedPhone = String(phone ?? "").trim();
+        if(!/^0\d{9}$/.test(normalizedPhone)){
+            return NextResponse.json({
+                message: "Số điện thoại không hợp lệ — phải gồm 10 chữ số và bắt đầu bằng 0 (VD: 0901234567)",
+            }, {status: 400})
+        }
+
         const session = await auth();
-        const user = await User.findOneAndUpdate({email: session?.user?.email} , {phone , role} , {new:true})
+        const user = await User.findOneAndUpdate({email: session?.user?.email} , {phone: normalizedPhone , role} , {new:true})
         if(!user){
             return NextResponse.json({
                 message: "User not found",

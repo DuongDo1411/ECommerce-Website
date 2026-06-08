@@ -1,25 +1,26 @@
 'use client'
 import { AnimatePresence, motion } from 'motion/react';
+import Link from 'next/link';
 import React, { useEffect, useState } from 'react'
 import { FaAngleLeft } from "react-icons/fa6";
 import { FaAngleRight } from "react-icons/fa6";
 
-
+const CATEGORY_MAP = [
+    { label: "Fashion & Lifestyle",    viLabel: "Fashion & Lifestyle",    icon: "👗" },
+    { label: "Electronics & Gadgets",  viLabel: "Electronics & Gadgets",  icon: "📱" },
+    { label: "Home & Living",          viLabel: "Home & Living",          icon: "🏠" },
+    { label: "Beauty & Personal Care", viLabel: "Beauty & Personal Care", icon: "💄" },
+    { label: "Toys, Kids & Baby",      viLabel: "Toys, Kids & Baby",      icon: "🧸" },
+    { label: "Food & Grocery",         viLabel: "Food & Grocery",         icon: "🛒" },
+    { label: "Sports & Fitness",       viLabel: "Sports & Fitness",       icon: "🏀" },
+    { label: "Automotive Accessories", viLabel: "Automotive Accessories", icon: "🚗" },
+    { label: "Gifts & Handcrafts",     viLabel: "Gifts & Handcrafts",     icon: "🎁" },
+    { label: "Books & Stationery",     viLabel: "Books & Stationery",     icon: "📚" },
+];
 
 function CategorySlider() {
     const [startIndex , setStartIndex] = useState(0);
-    const categories = [
-        { label: "Fashion & Lifestyle", icon: "👗" },
-        { label: "Electronics & Gadgets", icon: "📱" },
-        { label: "Home & Living", icon: "🏠" },
-        { label: "Beauty & Personal Care", icon: "💄" },
-        { label: "Toys, Kids & Baby", icon: "🧸" },
-        { label: "Food & Grocery", icon: "🛒" },
-        { label: "Sports & Fitness", icon: "🏀" },
-        { label: "Automative Accessories", icon: "🚗" },
-        { label: "Gifts & Handcrafts", icon: "🎁" },
-        { label: "Books & Stationery", icon: "📚" },
-    ];
+    const categories = CATEGORY_MAP;
 
     const nextSlice = () =>{
         setStartIndex((prev)=> (prev + 5) % categories.length);
@@ -68,11 +69,15 @@ function CategorySlider() {
                 >
                     {
                         categories.slice(startIndex , startIndex + 5).map((item , index)=>(
-                            <motion.div 
+                            <Link
                             key={index}
+                            href={`/category?cat=${encodeURIComponent(item.viLabel)}`}
+                            className='block'
+                            >
+                            <motion.div
                             whileHover={{scale:1.08, y: -8}}
                             whileTap={{scale:0.95}}
-                            className='group bg-linear-to-br from-white/10 to-white/5 
+                            className='group bg-linear-to-br from-white/10 to-white/5
                             border border-white/20 hover:border-blue-500/50 p-6 md:p-8
                             rounded-2xl cursor-pointer
                             text-white transition-all duration-300
@@ -81,10 +86,9 @@ function CategorySlider() {
                             >
                                 <span className='text-5xl md:text-6xl mb-4 block group-hover:scale-110 transition-transform duration-300'>{item.icon}</span>
                                 <p className='text-sm md:text-base font-semibold group-hover:text-blue-400 transition-colors duration-300'>{item.label}</p>
-                                
-                            </motion.div>
 
-                            
+                            </motion.div>
+                            </Link>
                         ))
                     }
 

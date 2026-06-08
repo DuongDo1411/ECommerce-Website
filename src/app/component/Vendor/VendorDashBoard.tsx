@@ -1,45 +1,67 @@
 "use client";
 import React, { useState } from "react";
-import { MdDashboard } from "react-icons/md";
+import { MdDashboard, MdArrowBack } from "react-icons/md";
 import { FaBoxOpen, FaShoppingCart, FaStore } from "react-icons/fa";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import { AnimatePresence, motion } from "motion/react";
 import VendorProducts from "./VendorProducts";
 import VendorOrders from "./VendorOrders";
 import Dashboard from "./Dashboard";
+import VendorShopView from "./VendorShopView";
+import { IUser } from "@/model/user.model";
 
-function VendorDashBoard() {
+function VendorDashBoard({ user }: { user: IUser }) {
   const [activePage, setActivePage] = useState("dashboard");
   const [openMenu, setOpenMenu] = useState(false);
 
   const renderPage = () => {
     switch (activePage) {
-      case "dashboard":
-        return <Dashboard />;
-      case "products":
-        return <VendorProducts />;
-      case "orders":
-        return <VendorOrders />;
+      case "dashboard": return <Dashboard />;
+      case "products": return <VendorProducts />;
+      case "orders": return <VendorOrders />;
+      case "myshop": return <VendorShopView user={user} />;
     }
   };
 
   const menu = [
-    {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: <MdDashboard size={22} />,
-    },
-    {
-      id: "products",
-      label: "Products",
-      icon: <FaBoxOpen size={22} />,
-    },
-    {
-      id: "orders",
-      label: "Orders",
-      icon: <FaShoppingCart size={22} />,
-    },
+    { id: "dashboard", label: "Dashboard", icon: <MdDashboard size={22} /> },
+    { id: "products", label: "Products", icon: <FaBoxOpen size={22} /> },
+    { id: "orders", label: "Orders", icon: <FaShoppingCart size={22} /> },
   ];
+
+  const isViewingShop = activePage === "myshop";
+
+  const handleShopToggle = () => {
+    setActivePage(isViewingShop ? "dashboard" : "myshop");
+  };
+
+  const ShopToggleButton = ({ mobile = false }: { mobile?: boolean }) => (
+    <motion.button
+      key="myshop"
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.2 }}
+      whileHover={{ x: 4 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={() => {
+        if (mobile) setOpenMenu(false);
+        handleShopToggle();
+      }}
+      className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all font-medium text-sm group
+        ${
+          isViewingShop
+            ? "bg-linear-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-teal-500/30"
+            : "bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-transparent hover:border-teal-500/30"
+        }`}
+    >
+      <span
+        className={`transition-all ${isViewingShop ? "text-white" : "text-gray-400 group-hover:text-teal-400"}`}
+      >
+        {isViewingShop ? <MdArrowBack size={22} /> : <FaStore size={22} />}
+      </span>
+      {isViewingShop ? "← Về quản lý" : "Xem cửa hàng"}
+    </motion.button>
+  );
 
   return (
     <div className="w-full flex min-h-screen bg-linear-to-br from-black via-gray-950 to-black text-white">
@@ -50,7 +72,7 @@ function VendorDashBoard() {
           animate={{ opacity: 1, x: 0 }}
           className="text-2xl font-bold bg-linear-to-r from-emerald-400 to-emerald-600 bg-clip-text text-transparent"
         >
-          Vendor Panel
+          {isViewingShop ? "My Shop" : "Vendor Panel"}
         </motion.h1>
         {!openMenu && (
           <motion.button
@@ -69,7 +91,7 @@ function VendorDashBoard() {
         initial={{ x: -40, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.4 }}
-        className="hidden lg:block w-72 bg-linear-to-b from-gray-900/80 to-black/60 border-r border-emerald-500/20 mt-0 p-6 backdrop-blur-xl sticky top-0 h-screen"
+        className="hidden lg:flex flex-col w-72 bg-linear-to-b from-gray-900/80 to-black/60 border-r border-emerald-500/20 mt-0 p-6 backdrop-blur-xl sticky top-0 h-screen"
       >
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -108,6 +130,11 @@ function VendorDashBoard() {
             </motion.button>
           ))}
         </div>
+
+        {/* Divider + My Shop button */}
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <ShopToggleButton />
+        </div>
       </motion.div>
 
       {/* Sidebar for mobile */}
@@ -117,13 +144,8 @@ function VendorDashBoard() {
             initial={{ x: -300 }}
             animate={{ x: 0 }}
             exit={{ x: -300 }}
-            transition={{
-              duration: 0.3,
-              type: "spring",
-              stiffness: 200,
-              damping: 24,
-            }}
-            className="lg:hidden fixed top-0 left-0 w-72 h-screen bg-linear-to-b from-gray-900/95 to-black/95 backdrop-blur-xl p-6 z-40 border-r border-emerald-500/20 shadow-2xl"
+            transition={{ duration: 0.3, type: "spring", stiffness: 200, damping: 24 }}
+            className="lg:hidden fixed top-0 left-0 w-72 h-screen bg-linear-to-b from-gray-900/95 to-black/95 backdrop-blur-xl p-6 z-40 border-r border-emerald-500/20 shadow-2xl flex flex-col"
           >
             <div className="flex justify-between items-center mb-8">
               <motion.h1
@@ -171,6 +193,11 @@ function VendorDashBoard() {
                   {item.label}
                 </motion.button>
               ))}
+            </div>
+
+            {/* Divider + My Shop button */}
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <ShopToggleButton mobile />
             </div>
           </motion.div>
         )}

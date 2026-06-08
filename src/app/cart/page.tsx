@@ -2,8 +2,10 @@
 import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FaArrowLeft, FaShoppingCart, FaTrash } from "react-icons/fa";
+import AddressPickerModal from "@/app/component/AddressPickerModal";
+import type { Address } from "@/app/component/AddressBook";
 
 interface CartItem {
   product: {
@@ -13,9 +15,12 @@ interface CartItem {
     image1: string;
     stock: number;
     isStockAvailable: boolean;
+    isWearable?: boolean;
+    sizeStock?: { size: string; stock: number }[];
     vendor?: { shopName?: string; name?: string };
   };
   quantity: number;
+  size?: string;
 }
 
 export default function CartPage() {
@@ -25,6 +30,14 @@ export default function CartPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
+
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const [addrLoading, setAddrLoading] = useState(true);
+  const [showPicker, setShowPicker] = useState(false);
+  const [ghnFee, setGhnFee] = useState<number | null>(null);
+  const [feeLoading, setFeeLoading] = useState(false);
+  const [feeError, setFeeError] = useState<string | null>(null);
+  const feeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchCart = useCallback(async () => {
     setLoading(true);
@@ -47,19 +60,83 @@ export default function CartPage() {
     fetchCart();
   }, [fetchCart]);
 
+  // Load saved addresses, preselect the default one.
+  useEffect(() => {
+    fetch("/api/user/addresses")
+      .then((r) => r.json())
+      .then((d) => {
+        const list: Address[] = d.addresses ?? [];
+        setSelectedAddress(
+          list.find((a) => a.isDefault) ?? list[0] ?? null,
+        );
+      })
+      .catch(() => {})
+      .finally(() => setAddrLoading(false));
+  }, []);
+
+  // Recalculate GHN fee whenever the address or cart contents change (debounced).
+  useEffect(() => {
+    if (!selectedAddress || cart.length === 0) {
+      setGhnFee(null);
+      return;
+    }
+    if (feeTimer.current) clearTimeout(feeTimer.current);
+    setFeeLoading(true);
+    setFeeError(null);
+    feeTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/ghn/calculate-fee", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            addressId: selectedAddress._id,
+            items: cart.map((c) => ({
+              productId: c.product._id,
+              quantity: c.quantity,
+            })),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message ?? "Không tính được phí ship");
+        setGhnFee(data.totalFee);
+        // Stash for checkout to reuse without recomputing.
+        sessionStorage.setItem(
+          "ghnCheckout",
+          JSON.stringify({
+            addressId: selectedAddress._id,
+            totalFee: data.totalFee,
+            feesByVendor: data.feesByVendor,
+          }),
+        );
+      } catch (e: any) {
+        setGhnFee(null);
+        setFeeError(e?.message ?? "Lỗi tính phí vận chuyển");
+      } finally {
+        setFeeLoading(false);
+      }
+    }, 500);
+    return () => {
+      if (feeTimer.current) clearTimeout(feeTimer.current);
+    };
+  }, [selectedAddress, cart]);
+
   /* ── Tăng / Giảm số lượng ── */
-  const handleQty = async (productId: string, newQty: number) => {
+  const handleQty = async (productId: string, newQty: number, size?: string) => {
     if (newQty < 1) return;
-    setUpdatingId(productId);
+    const key = size ? `${productId}__${size}` : productId;
+    setUpdatingId(key);
     try {
-      await fetch(`/api/user/cart/${productId}`, {
+      const url = `/api/user/cart/${productId}${size ? `?size=${encodeURIComponent(size)}` : ""}`;
+      await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quantity: newQty }),
       });
       setCart((prev) =>
         prev.map((item) =>
-          item.product._id === productId ? { ...item, quantity: newQty } : item,
+          item.product._id === productId && (item.size ?? null) === (size ?? null)
+            ? { ...item, quantity: newQty }
+            : item,
         ),
       );
     } finally {
@@ -68,11 +145,18 @@ export default function CartPage() {
   };
 
   /* ── Xóa sản phẩm ── */
-  const handleDelete = async (productId: string) => {
-    setDeletingId(productId);
+  const handleDelete = async (productId: string, size?: string) => {
+    const key = size ? `${productId}__${size}` : productId;
+    setDeletingId(key);
     try {
-      await fetch(`/api/user/cart/${productId}`, { method: "DELETE" });
-      setCart((prev) => prev.filter((item) => item.product._id !== productId));
+      const url = `/api/user/cart/${productId}${size ? `?size=${encodeURIComponent(size)}` : ""}`;
+      await fetch(url, { method: "DELETE" });
+      setCart((prev) =>
+        prev.filter(
+          (item) =>
+            !(item.product._id === productId && (item.size ?? null) === (size ?? null)),
+        ),
+      );
     } finally {
       setDeletingId(null);
     }
@@ -166,9 +250,15 @@ export default function CartPage() {
           <AnimatePresence initial={false}>
             {cart.map((item, idx) => {
               const pid = item.product._id;
+              const cartKey = item.size ? `${pid}__${item.size}` : pid;
               const lineTotal = item.product.price * item.quantity;
-              const isUpdating = updatingId === pid;
-              const isDeleting = deletingId === pid;
+              const isUpdating = updatingId === cartKey;
+              const isDeleting = deletingId === cartKey;
+              // Stock tối đa theo size hoặc tổng
+              const maxStock =
+                item.size && item.product.sizeStock
+                  ? (item.product.sizeStock.find((s) => s.size === item.size)?.stock ?? 99)
+                  : (item.product.stock ?? 99);
 
               return (
                 <motion.div
@@ -202,7 +292,7 @@ export default function CartPage() {
                     </Link>
 
                     {item.product.vendor && (
-                      <p className="text-[11px] text-gray-500 mb-2">
+                      <p className="text-[11px] text-gray-500 mb-1">
                         Sold by{" "}
                         <span className="text-gray-400">
                           {item.product.vendor.shopName ||
@@ -210,6 +300,13 @@ export default function CartPage() {
                             "Vendor"}
                         </span>
                       </p>
+                    )}
+
+                    {/* Size badge */}
+                    {item.size && (
+                      <span className="inline-block bg-blue-500/15 text-blue-400 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-blue-500/30 mb-2">
+                        Size: {item.size}
+                      </span>
                     )}
 
                     {/* Price per unit */}
@@ -225,7 +322,7 @@ export default function CartPage() {
                       {/* Quantity */}
                       <div className="flex items-center border border-white/20 rounded-xl overflow-hidden">
                         <button
-                          onClick={() => handleQty(pid, item.quantity - 1)}
+                          onClick={() => handleQty(pid, item.quantity - 1, item.size)}
                           disabled={isUpdating || item.quantity <= 1}
                           className="px-3 py-1 text-gray-400 hover:text-white hover:bg-white/10 transition-colors text-base font-bold disabled:opacity-40"
                         >
@@ -239,11 +336,8 @@ export default function CartPage() {
                           )}
                         </span>
                         <button
-                          onClick={() => handleQty(pid, item.quantity + 1)}
-                          disabled={
-                            isUpdating ||
-                            item.quantity >= (item.product.stock ?? 99)
-                          }
+                          onClick={() => handleQty(pid, item.quantity + 1, item.size)}
+                          disabled={isUpdating || item.quantity >= maxStock}
                           className="px-3 py-1 text-gray-400 hover:text-white hover:bg-white/10 transition-colors text-base font-bold disabled:opacity-40"
                         >
                           +
@@ -259,7 +353,7 @@ export default function CartPage() {
 
                   {/* Delete button */}
                   <button
-                    onClick={() => handleDelete(pid)}
+                    onClick={() => handleDelete(pid, item.size)}
                     disabled={isDeleting}
                     className="absolute top-3 right-3 p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200 disabled:opacity-40"
                     aria-label="Xóa sản phẩm"
@@ -289,11 +383,14 @@ export default function CartPage() {
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {cart.map((item) => (
                 <div
-                  key={item.product._id}
+                  key={`${item.product._id}${item.size ? `_${item.size}` : ""}`}
                   className="flex justify-between text-xs text-gray-400 gap-2"
                 >
                   <span className="truncate flex-1">
-                    {item.product.title}{" "}
+                    {item.product.title}
+                    {item.size && (
+                      <span className="ml-1 text-blue-400/70">[{item.size}]</span>
+                    )}{" "}
                     <span className="text-gray-600">×{item.quantity}</span>
                   </span>
                   <span className="text-white font-medium shrink-0">
@@ -308,6 +405,44 @@ export default function CartPage() {
 
             <div className="h-px bg-white/10" />
 
+            {/* Delivery address */}
+            {addrLoading ? (
+              <p className="text-xs text-gray-500">Đang tải địa chỉ...</p>
+            ) : selectedAddress ? (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-500 uppercase font-semibold">
+                    Giao đến
+                  </span>
+                  <button
+                    onClick={() => setShowPicker(true)}
+                    className="text-xs text-blue-400 hover:underline"
+                  >
+                    Đổi
+                  </button>
+                </div>
+                <p className="text-xs text-white font-medium">
+                  {selectedAddress.fullName} | {selectedAddress.phone}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {selectedAddress.addressDetail}, {selectedAddress.wardName},{" "}
+                  {selectedAddress.districtName}, {selectedAddress.provinceName}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+                <p className="text-xs text-amber-300 mb-2">
+                  ⚠️ Bạn chưa có địa chỉ giao hàng
+                </p>
+                <Link
+                  href="/profile"
+                  className="text-xs text-blue-400 hover:underline font-semibold"
+                >
+                  + Thêm địa chỉ trong Hồ sơ
+                </Link>
+              </div>
+            )}
+
             {/* Subtotal */}
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-400">
@@ -320,10 +455,21 @@ export default function CartPage() {
 
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-400">Phí vận chuyển</span>
-              <span className="text-green-400 text-sm font-semibold">
-                Miễn phí
-              </span>
+              {feeLoading ? (
+                <span className="inline-block w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+              ) : ghnFee !== null ? (
+                <span className="text-white text-sm font-semibold">
+                  {ghnFee.toLocaleString("vi-VN")}₫
+                </span>
+              ) : (
+                <span className="text-gray-500 text-xs">
+                  {selectedAddress ? "—" : "Chọn địa chỉ"}
+                </span>
+              )}
             </div>
+            {feeError && (
+              <p className="text-[11px] text-red-400">{feeError}</p>
+            )}
 
             <div className="h-px bg-white/10" />
 
@@ -331,7 +477,7 @@ export default function CartPage() {
             <div className="flex justify-between items-center">
               <span className="font-bold text-white">Tổng cộng</span>
               <span className="text-xl font-black text-blue-400">
-                {subtotal.toLocaleString("vi-VN")}₫
+                {(subtotal + (ghnFee ?? 0)).toLocaleString("vi-VN")}₫
               </span>
             </div>
 
@@ -339,7 +485,12 @@ export default function CartPage() {
             <motion.button
               whileTap={{ scale: 0.97 }}
               whileHover={{ scale: 1.02 }}
-              disabled={checkingOut}
+              disabled={
+                checkingOut ||
+                !selectedAddress ||
+                feeLoading ||
+                ghnFee === null
+              }
               onClick={() => {
                 setCheckingOut(true);
                 router.push("/checkout");
@@ -351,6 +502,10 @@ export default function CartPage() {
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Đang xử lý...
                 </span>
+              ) : !selectedAddress ? (
+                "Cần địa chỉ giao hàng"
+              ) : feeLoading ? (
+                "Đang tính phí ship..."
               ) : (
                 "Thanh toán →"
               )}
@@ -366,6 +521,13 @@ export default function CartPage() {
           </div>
         </motion.div>
       </div>
+
+      <AddressPickerModal
+        open={showPicker}
+        selectedId={selectedAddress?._id}
+        onClose={() => setShowPicker(false)}
+        onPick={(a) => setSelectedAddress(a)}
+      />
     </div>
   );
 }

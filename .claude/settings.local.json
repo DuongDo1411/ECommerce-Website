@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(curl -s -X POST \"https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/available-services\" -H \"Content-Type: application/json\" -H \"Token: bc1fda57-5124-11f1-a973-aee5264794df\" -d '{\"shop_id\":200329,\"from_district\":3440,\"to_district\":3695}')",
+      "Bash(xargs grep -l \"vendor\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\MultiVendor_Ecoshop_DATN\\\\ecommerce_shop\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(ls -la '/mnt/c/MultiVendor_Ecoshop_DATN/ecommerce_shop/src/model/')",
+      "Read(//mnt/c/MultiVendor_Ecoshop_DATN/ecommerce_shop/src/**)",
+      "PowerShell(Get-ChildItem \"c:\\\\MultiVendor_Ecoshop_DATN\\\\ecommerce_shop\\\\src\\\\app\\\\api\\\\orders\" -Recurse -Force | ForEach-Object { $_.FullName })",
+      "Bash(node -e \"const fa6 = require\\('react-icons/fa6'\\); console.log\\(Object.keys\\(fa6\\).filter\\(k => k.toLowerCase\\(\\).includes\\('bag'\\) || k.toLowerCase\\(\\).includes\\('shop'\\) || k.toLowerCase\\(\\).includes\\('cart'\\)\\).join\\('\\\\n'\\)\\)\")",
+      "WebFetch(domain:api.ghn.vn)"
+    ]
+  }
+}

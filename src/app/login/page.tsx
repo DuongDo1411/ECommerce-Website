@@ -1,11 +1,12 @@
 'use client'
 import { motion, AnimatePresence } from 'motion/react'
 import { useRouter } from 'next/navigation';
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { ClipLoader } from 'react-spinners'
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import { signIn } from 'next-auth/react';
+import { ToastContainer, type ToastData } from '../component/Toast';
 
 function SignIn() {
   const [email, setEmail] = useState('')
@@ -13,6 +14,7 @@ function SignIn() {
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<ToastData | null>(null);
 
   const handelSignIn = async (e: React.FormEvent) => {
     setLoading(true);
@@ -22,15 +24,21 @@ function SignIn() {
         email,
         password,
         redirect: false
-      })
-      alert("Đăng nhập thành công");
-      router.push("/");
-      setLoading(false);
+      });
 
+      if (result?.error) {
+        setToast({ message: "Email hoặc mật khẩu không đúng. Vui lòng thử lại.", type: "error" });
+        setLoading(false);
+        return;
+      }
+
+      setToast({ message: "Đăng nhập thành công! Đang chuyển trang...", type: "success" });
+      setTimeout(() => router.push("/"), 1200);
     } catch (error) {
       console.log(error);
+      setToast({ message: "Đã có lỗi xảy ra. Vui lòng thử lại.", type: "error" });
+    } finally {
       setLoading(false);
-      alert(error);
     }
   }
 
@@ -128,6 +136,9 @@ function SignIn() {
           </form>
         </motion.div>
       </AnimatePresence>
+
+      {/* ── Toast notification ── */}
+      <ToastContainer toast={toast} onClose={() => setToast(null)} />
     </div>
   )
 }

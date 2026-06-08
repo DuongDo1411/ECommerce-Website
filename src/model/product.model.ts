@@ -19,6 +19,7 @@ export interface IProduct {
 
   isWearable: boolean;
   size?: string[];
+  sizeStock?: { size: string; stock: number }[];
 
   verificationStatus?: "pending" | "approved" | "rejected";
   requestedAt?: Date;
@@ -31,6 +32,12 @@ export interface IProduct {
   freeDelivery?: boolean;
   warranty?: string;
   payOnDelivery?: boolean;
+
+  // GHN shipping dimensions
+  weight?: number; // gram
+  length?: number; // cm
+  width?: number; // cm
+  height?: number; // cm
 
   detailsPoints: string[];
 
@@ -101,6 +108,15 @@ const productSchema = new mongoose.Schema<IProduct>(
       type: [String],
       default: [],
     },
+    sizeStock: {
+      type: [
+        {
+          size: { type: String, required: true },
+          stock: { type: Number, default: 0, min: 0 },
+        },
+      ],
+      default: [],
+    },
     verificationStatus: {
       type: String,
       enum: ["pending", "approved", "rejected"],
@@ -118,7 +134,7 @@ const productSchema = new mongoose.Schema<IProduct>(
     },
     isActive: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     replacementDays: {
       type: Number,
@@ -135,6 +151,22 @@ const productSchema = new mongoose.Schema<IProduct>(
     payOnDelivery: {
       type: Boolean,
       default: false,
+    },
+    weight: {
+      type: Number,
+      default: 500,
+    },
+    length: {
+      type: Number,
+      default: 20,
+    },
+    width: {
+      type: Number,
+      default: 15,
+    },
+    height: {
+      type: Number,
+      default: 10,
     },
     detailsPoints: {
       type: [String],

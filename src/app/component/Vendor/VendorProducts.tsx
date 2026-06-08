@@ -5,12 +5,12 @@ import { RootState } from "@/redux/store";
 import { motion, AnimatePresence } from "motion/react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { AppDispatch } from "@/redux/store";
 import { setAllProductsData } from "@/redux/vendorSlice";
 import axios from "axios";
-import { FiUpload, FiX, FiCheck, FiSend, FiEdit2, FiToggleLeft, FiToggleRight } from "react-icons/fi";
+import { FiUpload, FiX, FiCheck, FiSend, FiEdit2, FiToggleLeft, FiToggleRight, FiSearch } from "react-icons/fi";
 import { FaBoxOpen, FaCheckCircle, FaClock, FaTag, FaLayerGroup } from "react-icons/fa";
 import { ClipLoader } from "react-spinners";
 import { IProduct } from "@/model/product.model";
@@ -53,7 +53,7 @@ function VendorProducts() {
   const [editStock, setEditStock] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editIsWearable, setEditIsWearable] = useState(false);
-  const [editSizes, setEditSizes] = useState<string[]>([]);
+  const [editSizeStock, setEditSizeStock] = useState<{ size: string; stock: number }[]>([]);
   const [editReplacementDays, setEditReplacementDays] = useState("");
   const [editWarranty, setEditWarranty] = useState("");
   const [editFreeDelivery, setEditFreeDelivery] = useState(false);
@@ -73,6 +73,43 @@ function VendorProducts() {
     {},
   );
 
+  /* ── Filter states ── */
+  const [searchText, setSearchText] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | "approved" | "rejected" | "pending">("all");
+  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterCategory, setFilterCategory] = useState("all");
+
+  /* ── Derived: filtered list ── */
+  const filteredProducts = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
+    return myProducts.filter((p: any) => {
+      if (q) {
+        const matchTitle = p.title?.toLowerCase().includes(q);
+        const matchCategory = p.category?.toLowerCase().includes(q);
+        if (!matchTitle && !matchCategory) return false;
+      }
+      if (filterStatus !== "all" && p.verificationStatus !== filterStatus) return false;
+      if (filterActive === "active" && !p.isActive) return false;
+      if (filterActive === "inactive" && p.isActive) return false;
+      if (filterCategory !== "all" && p.category !== filterCategory) return false;
+      return true;
+    });
+  }, [myProducts, searchText, filterStatus, filterActive, filterCategory]);
+
+  const activeFilterCount = [
+    searchText !== "",
+    filterStatus !== "all",
+    filterActive !== "all",
+    filterCategory !== "all",
+  ].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setSearchText("");
+    setFilterStatus("all");
+    setFilterActive("all");
+    setFilterCategory("all");
+  };
+
   const openEdit = (p: IProduct) => {
     setEditProduct(p);
     setEditTitle(p.title);
@@ -81,7 +118,23 @@ function VendorProducts() {
     setEditStock(String(p.stock));
     setEditCategory(p.category);
     setEditIsWearable(p.isWearable);
-    setEditSizes(p.size ?? []);
+    // Nếu product đã có sizeStock (đã nhập từng size) → dùng nguyên
+    // Nếu chưa có (product cũ dùng stock tổng) → phân bổ stock tổng đều vào các size
+    let existingSizeStock: { size: string; stock: number }[];
+    const rawSizeStock = (p as any).sizeStock as { size: string; stock: number }[] | undefined;
+    if (rawSizeStock && rawSizeStock.length > 0) {
+      existingSizeStock = rawSizeStock;
+    } else {
+      const sizeList = p.size ?? [];
+      const totalStock = p.stock ?? 0;
+      const perSize = sizeList.length > 0 ? Math.floor(totalStock / sizeList.length) : 0;
+      const remainder = sizeList.length > 0 ? totalStock % sizeList.length : 0;
+      existingSizeStock = sizeList.map((s: string, i: number) => ({
+        size: s,
+        stock: perSize + (i === 0 ? remainder : 0), // phần dư vào size đầu
+      }));
+    }
+    setEditSizeStock(existingSizeStock);
     setEditReplacementDays(String(p.replacementDays ?? ""));
     setEditWarranty(p.warranty ?? "");
     setEditFreeDelivery(p.freeDelivery ?? false);
@@ -120,8 +173,15 @@ function VendorProducts() {
   };
 
   const toggleEditSize = (s: string) =>
-    setEditSizes((prev) =>
-      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+    setEditSizeStock((prev) => {
+      const exists = prev.find((x) => x.size === s);
+      if (exists) return prev.filter((x) => x.size !== s);
+      return [...prev, { size: s, stock: 0 }];
+    });
+
+  const updateEditSizeStock = (s: string, qty: number) =>
+    setEditSizeStock((prev) =>
+      prev.map((x) => (x.size === s ? { ...x, stock: Math.max(0, qty) } : x)),
     );
 
   const handleEditSubmit = async () => {
@@ -136,7 +196,9 @@ function VendorProducts() {
       fd.append("stock", editStock);
       fd.append("category", editCategory);
       fd.append("isWearable", String(editIsWearable));
-      editSizes.forEach((s) => fd.append("sizes", s));
+      if (editIsWearable) {
+        fd.append("sizeStock", JSON.stringify(editSizeStock));
+      }
       fd.append("replacementDays", editReplacementDays);
       fd.append("freeDelivery", String(editFreeDelivery));
       fd.append("warranty", editWarranty);
@@ -147,12 +209,10 @@ function VendorProducts() {
       if (editImage3) fd.append("image3", editImage3);
       if (editImage4) fd.append("image4", editImage4);
 
-      const { data } = await axios.patch("/api/vendor/editProduct", fd);
-      // Update redux store
-      const updated = allProductsData.map((p: any) =>
-        p._id === data._id ? data : p,
-      );
-      dispatch(setAllProductsData(updated));
+      await axios.patch("/api/vendor/editProduct", fd);
+      // Re-fetch toàn bộ sản phẩm để đảm bảo Redux đồng bộ chính xác với DB
+      const refreshed = await axios.get("/api/vendor/allProduct");
+      dispatch(setAllProductsData(refreshed.data));
       setEditLoading(false);
       closeEdit();
       alert("✅ Product updated & resubmitted for admin review!");
@@ -222,7 +282,9 @@ function VendorProducts() {
               My Products
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {myProducts.length} sản phẩm đã đăng
+              {filteredProducts.length !== myProducts.length
+                ? `${filteredProducts.length} / ${myProducts.length} sản phẩm`
+                : `${myProducts.length} sản phẩm đã đăng`}
             </p>
           </div>
 
@@ -307,6 +369,103 @@ function VendorProducts() {
           </motion.div>
         )}
 
+        {/* ── Search + Filters ── */}
+        {myProducts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="mb-5 space-y-3"
+          >
+            {/* Search input */}
+            <div className="relative">
+              <FiSearch
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+                size={14}
+              />
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Tìm theo tên sản phẩm, danh mục..."
+                className="w-full pl-9 pr-9 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 transition-colors"
+              />
+              {searchText && (
+                <button
+                  onClick={() => setSearchText("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                >
+                  <FiX size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Filter dropdowns */}
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Verification status */}
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+                className={`bg-white/5 border text-xs rounded-xl px-3 py-2 focus:outline-none cursor-pointer transition-colors ${
+                  filterStatus !== "all"
+                    ? "border-emerald-500/60 text-emerald-300"
+                    : "border-white/10 text-slate-400 hover:border-white/20"
+                }`}
+              >
+                <option value="all">Trạng thái duyệt</option>
+                <option value="approved">Approved</option>
+                <option value="pending">Pending</option>
+                <option value="rejected">Rejected</option>
+              </select>
+
+              {/* Active status */}
+              <select
+                value={filterActive}
+                onChange={(e) => setFilterActive(e.target.value as typeof filterActive)}
+                className={`bg-white/5 border text-xs rounded-xl px-3 py-2 focus:outline-none cursor-pointer transition-colors ${
+                  filterActive !== "all"
+                    ? "border-emerald-500/60 text-emerald-300"
+                    : "border-white/10 text-slate-400 hover:border-white/20"
+                }`}
+              >
+                <option value="all">Hiển thị</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+
+              {/* Category */}
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className={`bg-white/5 border text-xs rounded-xl px-3 py-2 focus:outline-none cursor-pointer transition-colors ${
+                  filterCategory !== "all"
+                    ? "border-emerald-500/60 text-emerald-300"
+                    : "border-white/10 text-slate-400 hover:border-white/20"
+                }`}
+              >
+                <option value="all">Danh mục</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+
+              {/* Clear filters */}
+              {activeFilterCount > 0 && (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={clearFilters}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs text-red-400 bg-red-500/10 border border-red-500/25 rounded-xl hover:bg-red-500/20 transition-colors"
+                >
+                  <FiX size={11} />
+                  Xóa bộ lọc ({activeFilterCount})
+                </motion.button>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {/* ── Desktop Table (md+) ── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -348,8 +507,22 @@ function VendorProducts() {
                       </motion.div>
                     </td>
                   </tr>
+                ) : filteredProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-14 text-center">
+                      <p className="text-slate-500 text-sm">Không tìm thấy sản phẩm phù hợp</p>
+                      {activeFilterCount > 0 && (
+                        <button
+                          onClick={clearFilters}
+                          className="mt-2 text-xs text-emerald-400 hover:underline"
+                        >
+                          Xóa bộ lọc
+                        </button>
+                      )}
+                    </td>
+                  </tr>
                 ) : (
-                  myProducts.map((p: any, index: number) => {
+                  filteredProducts.map((p: any, index: number) => {
                     const statusCfg = getStatusConfig(p.verificationStatus);
                     return (
                       <motion.tr
@@ -470,8 +643,20 @@ function VendorProducts() {
               </div>
               <p className="text-slate-500 text-sm">Chưa có sản phẩm nào!</p>
             </motion.div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-14 rounded-2xl border border-white/8" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <p className="text-slate-500 text-sm">Không tìm thấy sản phẩm phù hợp</p>
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={clearFilters}
+                  className="mt-2 text-xs text-emerald-400 hover:underline"
+                >
+                  Xóa bộ lọc
+                </button>
+              )}
+            </div>
           ) : (
-            myProducts.map((p: any, index: number) => {
+            filteredProducts.map((p: any, index: number) => {
               const statusCfg = getStatusConfig(p.verificationStatus);
               return (
                 <motion.div
@@ -612,21 +797,24 @@ function VendorProducts() {
                         val: editTitle,
                         set: setEditTitle,
                         type: "text",
+                        show: true,
                       },
                       {
                         label: "Price ($)",
                         val: editPrice,
                         set: setEditPrice,
                         type: "number",
+                        show: true,
                       },
                       {
                         label: "Stock",
                         val: editStock,
                         set: setEditStock,
                         type: "number",
+                        show: !editIsWearable,
                       },
                     ] as const
-                  ).map(({ label, val, set, type }) => (
+                  ).filter(({ show }) => show).map(({ label, val, set, type }) => (
                     <div key={label}>
                       <label className="text-xs text-slate-400 uppercase tracking-widest mb-1 block">
                         {label}
@@ -670,7 +858,7 @@ function VendorProducts() {
                   />
                 </div>
 
-                {/* Wearable + Sizes */}
+                {/* Wearable + Sizes with per-size stock */}
                 <div>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <div className="relative">
@@ -688,21 +876,60 @@ function VendorProducts() {
                     </span>
                   </label>
                   {editIsWearable && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {SIZE_OPTIONS.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => toggleEditSize(s)}
-                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${
-                            editSizes.includes(s)
-                              ? "bg-violet-600 border-violet-500 text-white"
-                              : "bg-white/5 border-white/20 text-slate-400"
-                          }`}
-                        >
-                          {s}
-                        </button>
-                      ))}
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs text-slate-500 mb-2">
+                        Chọn size và nhập số lượng tồn kho cho từng size
+                      </p>
+                      {/* Hint khi product cũ chưa có sizeStock từng size */}
+                      {editProduct && !(editProduct as any).sizeStock?.length && (editProduct.stock ?? 0) > 0 && (
+                        <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 mb-2">
+                          ℹ️ Tổng tồn kho cũ: <span className="font-bold">{editProduct.stock}</span> sản phẩm. Số lượng đã được chia đều cho các size — vui lòng điều chỉnh lại cho đúng.
+                        </p>
+                      )}
+
+                      {SIZE_OPTIONS.map((s) => {
+                        const entry = editSizeStock.find((x) => x.size === s);
+                        const isSelected = !!entry;
+                        return (
+                          <div key={s} className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleEditSize(s)}
+                              className={`w-14 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${
+                                isSelected
+                                  ? "bg-violet-600 border-violet-500 text-white"
+                                  : "bg-white/5 border-white/20 text-slate-400 hover:border-white/40"
+                              }`}
+                            >
+                              {s}
+                            </button>
+                            {isSelected && (
+                              <input
+                                type="number"
+                                min={0}
+                                value={entry.stock}
+                                onChange={(e) =>
+                                  updateEditSizeStock(s, Number(e.target.value))
+                                }
+                                className="w-28 px-2 py-1.5 bg-white/5 border border-violet-500/40 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all"
+                                placeholder="Số lượng"
+                              />
+                            )}
+                            {isSelected && (
+                              <span className="text-xs text-slate-500">sản phẩm</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {editSizeStock.length > 0 && (
+                        <p className="text-xs text-violet-400 pt-1">
+                          Tổng tồn kho:{" "}
+                          <span className="font-bold">
+                            {editSizeStock.reduce((sum, x) => sum + x.stock, 0)}
+                          </span>{" "}
+                          sản phẩm
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

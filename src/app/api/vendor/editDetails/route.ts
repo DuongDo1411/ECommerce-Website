@@ -6,15 +6,23 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
     try{
         await connectDB();
-        const {shopName, shopAddress, taxNumber} = await req.json();
+        const {shopName, shopAddress, shopAddressDetail, taxNumber} = await req.json();
         const session = await auth();
         if(!session?.user?.email){
             return NextResponse.json({message: "Anauthorized access"}, {status: 401});
+        }
+        // GHN requires structured pickup address (district id + ward code).
+        if(!shopAddressDetail?.districtId || !shopAddressDetail?.wardCode){
+            return NextResponse.json(
+                {message: "Vui lòng chọn đầy đủ Tỉnh / Quận / Phường cho địa chỉ kho"},
+                {status: 400},
+            );
         }
         const user = await User.findOneAndUpdate({email:session?.user?.email},
             {
                 shopName,
                 shopAddress,
+                shopAddressDetail,
                 taxNumber,
                 verificationStatus: "pending",
                 requestedAt: new Date()

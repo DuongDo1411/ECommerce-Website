@@ -17,14 +17,23 @@ export async function POST(req: NextRequest) {
     const title = formdata.get("title") as string;
     const description = formdata.get("description") as string;
     const price = Number(formdata.get("price"));
-    const stock = Number(formdata.get("stock"));
     const category = formdata.get("category") as string;
     const isWearable = formdata.get("isWearable") === "true";
-    const sizes = formdata.getAll("sizes");
+    const sizeStockRaw = formdata.get("sizeStock") as string | null;
+    const sizeStock: { size: string; stock: number }[] =
+      isWearable && sizeStockRaw ? JSON.parse(sizeStockRaw) : [];
+    const stock = isWearable
+      ? sizeStock.reduce((sum, s) => sum + (s.stock || 0), 0)
+      : Number(formdata.get("stock"));
+    const sizes = isWearable ? sizeStock.map((s) => s.size) : [];
     const replacementDays = Number(formdata.get("replacementDays")) || 0;
     const freeDelivery = formdata.get("freeDelivery") === "true";
     const warranty = (formdata.get("warranty") as string) || "No warranty";
     const payOnDelivery = formdata.get("payOnDelivery") === "true";
+    const weight = Number(formdata.get("weight")) || 500;
+    const length = Number(formdata.get("length")) || 20;
+    const width = Number(formdata.get("width")) || 15;
+    const height = Number(formdata.get("height")) || 10;
     const detailPoints = formdata.getAll("detailPoints");
     const img1 = formdata.get("image1") as Blob;
     const img2 = formdata.get("image2") as Blob;
@@ -48,7 +57,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (isWearable && sizes.length === 0) {
+    if (isWearable && sizeStock.length === 0) {
       return NextResponse.json(
         { message: "Sizes are required for wearable product" },
         { status: 400 },
@@ -71,14 +80,19 @@ export async function POST(req: NextRequest) {
       category,
       vendor: session.user.id,
       isWearable,
-      size: isWearable ? sizes : [],
+      size: sizes,
+      sizeStock: isWearable ? sizeStock : [],
       replacementDays,
       warranty,
       payOnDelivery,
       freeDelivery,
+      weight,
+      length,
+      width,
+      height,
       detailsPoints: detailPoints,
       verificationStatus: "pending",
-      isActive: false,
+      isActive: true,
     });
     await User.findByIdAndUpdate(
       session.user.id,

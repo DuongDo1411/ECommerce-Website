@@ -3,7 +3,6 @@ import React, { useState } from "react";
 import { MdDashboard } from "react-icons/md";
 import {
   FaUsers,
-  FaShoppingBag,
   FaStore,
   FaCheckCircle,
   FaBox,
@@ -12,7 +11,6 @@ import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import { AnimatePresence, motion } from "motion/react";
 import Dashboard from "./Dashboard";
 import VendorDetails from "./VendorDetails";
-import UserOrders from "./UserOrders";
 import VendorApproval from "./VendorApproval";
 import ProductApproval from "./ProductApproval";
 
@@ -26,8 +24,6 @@ function AdminDashBoard() {
         return <Dashboard />;
       case "vendors":
         return <VendorDetails />;
-      case "orders":
-        return <UserOrders />;
       case "vendor-approval":
         return <VendorApproval />;
       case "product-approval":
@@ -38,7 +34,6 @@ function AdminDashBoard() {
   const menu = [
     { id: "dashboard", label: "Dashboard", icon: <MdDashboard size={22} /> },
     { id: "vendors", label: "Vendor Details", icon: <FaStore size={22} /> },
-    { id: "orders", label: "User Orders", icon: <FaShoppingBag size={22} /> },
     {
       id: "vendor-approval",
       label: "Vendor Approval",

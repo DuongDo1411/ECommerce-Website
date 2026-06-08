@@ -51,7 +51,7 @@ function VendorPage({ user }: { user: IUser }) {
   if (user.verificationStatus == "approved") {
     return (
       <div className="w-full min-h-screen pt-16">
-        <VendorDashBoard />
+        <VendorDashBoard user={user} />
       </div>
     );
   }

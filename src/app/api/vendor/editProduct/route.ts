@@ -39,16 +39,25 @@ export async function PATCH(req: NextRequest) {
     const price = formData.get("price")
       ? Number(formData.get("price"))
       : existingProduct.price;
-    const stock = formData.get("stock")
-      ? Number(formData.get("stock"))
-      : existingProduct.stock;
     const category =
       (formData.get("category") as string) || existingProduct.category;
     const isWearable =
       formData.get("isWearable") != null
         ? formData.get("isWearable") === "true"
         : existingProduct.isWearable;
-    const sizes = formData.getAll("sizes") as string[];
+
+    // Per-size stock
+    const sizeStockRaw = formData.get("sizeStock") as string | null;
+    const sizeStock: { size: string; stock: number }[] =
+      isWearable && sizeStockRaw
+        ? JSON.parse(sizeStockRaw)
+        : (existingProduct.sizeStock ?? []);
+    const sizes = isWearable ? sizeStock.map((s) => s.size) : [];
+    const stock = isWearable
+      ? sizeStock.reduce((sum, s) => sum + (s.stock || 0), 0)
+      : formData.get("stock")
+        ? Number(formData.get("stock"))
+        : existingProduct.stock;
     const replacementDays = formData.get("replacementDays")
       ? Number(formData.get("replacementDays"))
       : existingProduct.replacementDays;
@@ -62,6 +71,18 @@ export async function PATCH(req: NextRequest) {
       formData.get("payOnDelivery") != null
         ? formData.get("payOnDelivery") === "true"
         : existingProduct.payOnDelivery;
+    const weight = formData.get("weight")
+      ? Number(formData.get("weight"))
+      : (existingProduct.weight ?? 500);
+    const length = formData.get("length")
+      ? Number(formData.get("length"))
+      : (existingProduct.length ?? 20);
+    const width = formData.get("width")
+      ? Number(formData.get("width"))
+      : (existingProduct.width ?? 15);
+    const height = formData.get("height")
+      ? Number(formData.get("height"))
+      : (existingProduct.height ?? 10);
     const detailPoints = formData.getAll("detailPoints") as string[];
 
     // Handle images — only re-upload if new file provided
@@ -97,11 +118,16 @@ export async function PATCH(req: NextRequest) {
         isStockAvailable: stock > 0,
         category,
         isWearable,
-        size: isWearable ? sizes : [],
+        size: sizes,
+        sizeStock: isWearable ? sizeStock : [],
         replacementDays,
         freeDelivery,
         warranty,
         payOnDelivery,
+        weight,
+        length,
+        width,
+        height,
         detailsPoints: detailPoints.length > 0 ? detailPoints : existingProduct.detailsPoints,
         image1,
         image2,

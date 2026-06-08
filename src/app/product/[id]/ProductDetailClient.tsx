@@ -31,9 +31,18 @@ export default function ProductDetailClient({ product }: Props) {
   // Mặc định hiển thị image1 (index 0)
   const [selectedImg, setSelectedImg] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | null>(
-    product.size?.[0] ?? null,
+    product.sizeStock && product.sizeStock.length > 0
+      ? product.sizeStock[0].size
+      : (product.size?.[0] ?? null),
   );
   const [qty, setQty] = useState(1);
+
+  // Tính stock của size đang chọn (wearable) hoặc stock tổng (non-wearable)
+  const selectedSizeStock =
+    product.isWearable && product.sizeStock && selectedSize
+      ? (product.sizeStock.find((s: { size: string; stock: number }) => s.size === selectedSize)?.stock ?? 0)
+      : product.stock;
+  const isCurrentSizeAvailable = selectedSizeStock > 0;
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartMsg, setCartMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -41,14 +50,22 @@ export default function ProductDetailClient({ product }: Props) {
   const { refreshCart } = useCart();
 
   const handleAddToCart = async (goToCart = false) => {
-    if (!product.isStockAvailable) return;
+    if (!isCurrentSizeAvailable) return;
+    if (product.isWearable && !selectedSize) {
+      setCartMsg({ type: "error", text: "Vui lòng chọn kích cỡ!" });
+      return;
+    }
     setAddingToCart(true);
     setCartMsg(null);
     try {
       const res = await fetch("/api/user/cart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, quantity: qty }),
+        body: JSON.stringify({
+          productId,
+          quantity: qty,
+          ...(product.isWearable && selectedSize ? { size: selectedSize } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -212,11 +229,11 @@ export default function ProductDetailClient({ product }: Props) {
             </p>
             <span
               className={`text-sm font-semibold mb-1 ${
-                product.isStockAvailable ? "text-green-400" : "text-red-400"
+                isCurrentSizeAvailable ? "text-green-400" : "text-red-400"
               }`}
             >
-              {product.isStockAvailable
-                ? `Còn ${product.stock} sản phẩm`
+              {isCurrentSizeAvailable
+                ? `Còn ${selectedSizeStock} sản phẩm`
                 : "Hết hàng"}
             </span>
           </div>
@@ -225,26 +242,40 @@ export default function ProductDetailClient({ product }: Props) {
           <div className="h-px w-full bg-white/10" />
 
           {/* Size selector */}
-          {product.isWearable && product.size && product.size.length > 0 && (
+          {product.isWearable && product.sizeStock && product.sizeStock.length > 0 && (
             <div>
               <p className="text-sm font-semibold text-gray-300 mb-2">
                 Kích cỡ:{" "}
                 <span className="text-white">{selectedSize ?? "—"}</span>
               </p>
               <div className="flex flex-wrap gap-2">
-                {product.size.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSelectedSize(s)}
-                    className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-all duration-200 ${
-                      selectedSize === s
-                        ? "border-blue-500 bg-blue-500/20 text-blue-300"
-                        : "border-white/20 text-gray-400 hover:border-white/40 hover:text-white"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+                {product.sizeStock.map((s: { size: string; stock: number }) => {
+                  const outOfStock = s.stock === 0;
+                  return (
+                    <button
+                      key={s.size}
+                      disabled={outOfStock}
+                      onClick={() => {
+                        setSelectedSize(s.size);
+                        setQty(1);
+                      }}
+                      className={`relative px-4 py-1.5 rounded-lg border text-sm font-medium transition-all duration-200 ${
+                        selectedSize === s.size
+                          ? "border-blue-500 bg-blue-500/20 text-blue-300"
+                          : outOfStock
+                          ? "border-white/10 text-gray-600 cursor-not-allowed line-through"
+                          : "border-white/20 text-gray-400 hover:border-white/40 hover:text-white"
+                      }`}
+                    >
+                      {s.size}
+                      {outOfStock && (
+                        <span className="absolute -top-1.5 -right-1.5 text-[9px] bg-red-500/80 text-white rounded-full px-1">
+                          hết
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -264,7 +295,7 @@ export default function ProductDetailClient({ product }: Props) {
               </span>
               <button
                 onClick={() =>
-                  setQty((q) => Math.min(product.stock ?? 99, q + 1))
+                  setQty((q) => Math.min(selectedSizeStock || 99, q + 1))
                 }
                 className="px-3 py-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors duration-200 text-lg font-bold"
               >
@@ -296,10 +327,10 @@ export default function ProductDetailClient({ product }: Props) {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 whileHover={{ scale: 1.02 }}
-                disabled={!product.isStockAvailable || addingToCart}
+                disabled={!isCurrentSizeAvailable || addingToCart}
                 onClick={() => handleAddToCart(false)}
                 className={`flex-1 py-3.5 rounded-2xl font-bold text-sm tracking-wide transition-all duration-300 ${
-                  product.isStockAvailable && !addingToCart
+                  isCurrentSizeAvailable && !addingToCart
                     ? "bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-lg hover:shadow-blue-500/40"
                     : "bg-gray-800 text-gray-600 cursor-not-allowed"
                 }`}
@@ -309,7 +340,7 @@ export default function ProductDetailClient({ product }: Props) {
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Đang thêm...
                   </span>
-                ) : product.isStockAvailable ? (
+                ) : isCurrentSizeAvailable ? (
                   "🛒 Thêm vào giỏ hàng"
                 ) : (
                   "Hết hàng"
@@ -320,10 +351,10 @@ export default function ProductDetailClient({ product }: Props) {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 whileHover={{ scale: 1.02 }}
-                disabled={!product.isStockAvailable || addingToCart}
+                disabled={!isCurrentSizeAvailable || addingToCart}
                 onClick={() => handleAddToCart(true)}
                 className={`flex-1 py-3.5 rounded-2xl font-bold text-sm tracking-wide border transition-all duration-300 ${
-                  product.isStockAvailable && !addingToCart
+                  isCurrentSizeAvailable && !addingToCart
                     ? "border-blue-500/50 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400"
                     : "border-gray-700 text-gray-600 cursor-not-allowed"
                 }`}
@@ -371,7 +402,16 @@ export default function ProductDetailClient({ product }: Props) {
 
           {/* Vendor */}
           {product.vendor && (
-            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+            <motion.div
+              whileHover={{ scale: 1.01, borderColor: "rgba(59,130,246,0.4)" }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() =>
+                router.push(
+                  `/shop/${(product.vendor as any)._id ?? (product.vendor as any).id}`
+                )
+              }
+              className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 cursor-pointer hover:bg-white/8 transition-colors duration-200"
+            >
               {/* Avatar: ảnh thật nếu có, fallback về chữ cái đầu */}
               <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-blue-500/40 shrink-0 bg-blue-600/20 flex items-center justify-center">
                 {(product.vendor as any).image ? (
@@ -402,11 +442,11 @@ export default function ProductDetailClient({ product }: Props) {
                     "Vendor"}
                 </p>
               </div>
-              <FaCheckCircle
-                size={14}
-                className="text-blue-400 ml-auto shrink-0"
-              />
-            </div>
+              <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                <FaCheckCircle size={14} className="text-blue-400" />
+                <span className="text-xs text-blue-400 font-medium">Xem shop</span>
+              </div>
+            </motion.div>
           )}
         </motion.div>
       </div>
