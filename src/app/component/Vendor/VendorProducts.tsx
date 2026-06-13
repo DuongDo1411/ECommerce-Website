@@ -257,16 +257,16 @@ function VendorProducts() {
 
   return (
     <div
-      className="w-full min-h-screen text-white"
+      className="w-full text-white"
       style={{ fontFamily: "'DM Sans', 'Sora', sans-serif" }}
     >
       {/* Ambient background */}
-      <div className="fixed inset-0 pointer-events-none z-0">
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-10%] left-[20%] w-[500px] h-[500px] rounded-full bg-blue-600/8 blur-[120px]" />
         <div className="absolute bottom-[10%] right-[10%] w-[400px] h-[400px] rounded-full bg-violet-600/6 blur-[100px]" />
       </div>
 
-      <div className="relative z-10 w-full p-5 sm:p-8 lg:p-10">
+      <div className="relative z-10 w-full">
         {/* ── Header ── */}
         <motion.div
           initial={{ opacity: 0, y: -16 }}
@@ -350,19 +350,19 @@ function VendorProducts() {
             ].map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-2xl border p-4 flex items-center gap-3"
+                className="rounded-2xl border p-3 sm:p-4 flex items-center gap-2 sm:gap-3"
                 style={{
                   background: "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))",
                   borderColor: stat.border,
                   boxShadow: `inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 20px ${stat.glow}`,
                 }}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${stat.iconBg}`}>
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${stat.iconBg}`}>
                   <stat.Icon size={18} className={stat.iconColor} />
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-widest">{stat.label}</p>
-                  <p className={`text-2xl font-bold leading-tight ${stat.color}`}>{stat.value}</p>
+                  <p className={`text-xl sm:text-2xl font-bold leading-tight ${stat.color}`}>{stat.value}</p>
                 </div>
               </div>
             ))}
@@ -671,32 +671,33 @@ function VendorProducts() {
                   }}
                 >
                   {/* Card top */}
-                  <div className="flex gap-4 p-4">
-                    <div className="relative w-20 h-20 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/10">
+                  <div className="flex gap-3 p-3">
+                    <div className="relative w-24 h-24 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/10">
                       <Image src={p.image1} alt="product" fill className="object-cover" />
+                      {/* Verification status overlay */}
+                      <span className={`absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold backdrop-blur-md ${statusCfg.bg} ${statusCfg.border} ${statusCfg.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+                        {statusCfg.label}
+                      </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white text-sm truncate">{p.title}</h3>
+                    <div className="flex flex-1 min-w-0 flex-col">
+                      <h3 className="font-semibold text-white text-sm leading-snug line-clamp-2">{p.title}</h3>
                       {p?.category && (
-                        <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-slate-500 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                        <span className="mt-1 inline-flex w-fit items-center gap-1 text-[10px] text-slate-500 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
                           <FaTag size={8} /> {p.category}
                         </span>
                       )}
-                      <div className="flex items-center gap-3 mt-2">
-                        <p className="text-emerald-400 font-bold text-base">${p.price}</p>
-                        <p className="text-xs text-slate-500">
-                          Còn: <span className={`font-semibold ${p?.stock > 5 ? "text-slate-300" : "text-rose-400"}`}>{p?.stock ?? 0}</span>
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${statusCfg.bg} ${statusCfg.border} ${statusCfg.text} border`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
-                          {statusCfg.label}
-                        </span>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border
+                      <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+                        <div className="min-w-0">
+                          <p className="text-emerald-400 font-bold text-lg leading-none">${p.price}</p>
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            Kho: <span className={`font-semibold ${p?.stock > 5 ? "text-slate-300" : "text-rose-400"}`}>{p?.stock ?? 0}</span>
+                          </p>
+                        </div>
+                        <span className={`inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border
                           ${p.isActive ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400" : "bg-slate-700/30 border-slate-600/20 text-slate-500"}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${p.isActive ? "bg-emerald-400" : "bg-slate-600"}`} />
-                          {p.isActive ? "Active" : "Inactive"}
+                          {p.isActive ? "Đang bán" : "Đã ẩn"}
                         </span>
                       </div>
                     </div>
@@ -754,7 +755,7 @@ function VendorProducts() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center px-4 py-6 overflow-y-auto"
+            className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center px-4 py-4 sm:py-6 overflow-y-auto"
           >
             <motion.div
               initial={{ scale: 0.88, y: 30 }}
@@ -770,7 +771,7 @@ function VendorProducts() {
               <div className="h-1 w-full bg-linear-to-r from-violet-600 to-blue-500" />
 
               {/* Header */}
-              <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/8">
+              <div className="flex items-center justify-between px-4 sm:px-6 pt-5 pb-4 border-b border-white/8">
                 <div>
                   <h2 className="text-xl font-bold bg-linear-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">
                     Edit Product
@@ -787,7 +788,7 @@ function VendorProducts() {
                 </button>
               </div>
 
-              <div className="px-6 py-5 space-y-5 max-h-[76vh] overflow-y-auto">
+              <div className="px-4 sm:px-6 py-5 space-y-5 max-h-[78vh] sm:max-h-[76vh] overflow-y-auto">
                 {/* Basic fields */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {(

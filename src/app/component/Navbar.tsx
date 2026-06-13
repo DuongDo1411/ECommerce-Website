@@ -1,11 +1,11 @@
 "use client"
-import React, { useState } from 'react'
+import React, { Dispatch, SetStateAction, useState } from 'react'
 import { IUser } from '@/model/user.model'
 import { useRouter } from 'next/navigation'
 import { useCart } from '@/context/CartContext'
+import { RootState } from '@/redux/store'
 import logo from '@/assets/logo.png'
 import Image from 'next/image'
-import { button, div } from 'motion/react-client'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   AiOutlineSearch,
@@ -19,16 +19,22 @@ import {
   AiOutlineShop,
   AiOutlineLogin,
   AiOutlineLogout,
-  AiOutlineSolution,
+  AiOutlineMessage,
 } from "react-icons/ai";
-import { GoListOrdered, GoListUnordered } from 'react-icons/go'
+import { GoListUnordered } from 'react-icons/go'
 import { signOut } from 'next-auth/react'
+import { useSelector } from 'react-redux'
+import { IconType } from 'react-icons'
+
+type AppRouter = ReturnType<typeof useRouter>;
 
 function Navbar({user}: {user: IUser}) {
     const router = useRouter();
     const [openMenu, setOpenMenu] = useState(false);
     const [sideBarOpen, setSideBarOpen] = useState(false);
     const { cartCount } = useCart();
+    const totalUnread = useSelector((state: RootState) => state.chat.totalUnread);
+    const showMessageBadge = user?.role === "user" && totalUnread > 0;
   return (
     <div className='fixed top-0 left-0 w-full bg-linear-to-r from-black via-black to-gray-900 text-white z-50 shadow-lg border-b border-blue-500/20'>
         <div className='max-w-7xl mx-auto px-6 py-4 flex justify-between items-center'>
@@ -60,6 +66,7 @@ function Navbar({user}: {user: IUser}) {
                         <motion.div
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.95 }}
+                        className='relative'
                         >
                             <Image src={user?.image} alt='user'
                             width={40} height={40} className='w-10 h-10 rounded-full
@@ -67,9 +74,13 @@ function Navbar({user}: {user: IUser}) {
                             cursor-pointer shadow-lg shadow-blue-500/30 transition-all' 
                             onClick={()=>setOpenMenu(!openMenu)}
                             /> 
+                            {showMessageBadge && <UnreadBadge count={totalUnread} />}
                         </motion.div>
                     ) : (
-                        <IconBtn Icon={AiOutlineUser} onClick={()=> setOpenMenu(!openMenu)} />
+                        <AvatarIconButton
+                          onClick={() => setOpenMenu(!openMenu)}
+                          unreadCount={showMessageBadge ? totalUnread : 0}
+                        />
                     )}
                     
                     <AnimatePresence>
@@ -84,6 +95,14 @@ function Navbar({user}: {user: IUser}) {
                             overflow-hidden'
                             >
                                 <DropDownBtn Icon={AiOutlineUser} label="Profile" onClick={()=>{router.push('/profile');setOpenMenu(false)}} />
+                                {user?.role === "user" && (
+                                    <DropDownBtn
+                                    Icon={AiOutlineMessage}
+                                    label="Messages"
+                                    badgeCount={totalUnread}
+                                    onClick={()=>{router.push('/messages');setOpenMenu(false)}}
+                                    />
+                                )}
                                 <DropDownBtn Icon={AiOutlineLogin} label="SignIn" onClick={()=>{router.push('/login');setOpenMenu(false)}} />
                                 <DropDownBtn Icon={AiOutlineLogout} label="SignOut" onClick={()=>{signOut();setOpenMenu(false)}} />
                             </motion.div>
@@ -172,6 +191,14 @@ function Navbar({user}: {user: IUser}) {
                                         <SidebarBtn label="Categories" path="/category" router={router} Icon={AiOutlineAppstore} setSideBarOpen={setSideBarOpen}/>
                                         <SidebarBtn label="Shops" path="/shop" router={router} Icon={AiOutlineShop} setSideBarOpen={setSideBarOpen}/>
                                         <SidebarBtn label="Orders" path="/orders" router={router} Icon={GoListUnordered} setSideBarOpen={setSideBarOpen}/>
+                                        <SidebarBtn
+                                        label="Messages"
+                                        path="/messages"
+                                        router={router}
+                                        Icon={AiOutlineMessage}
+                                        setSideBarOpen={setSideBarOpen}
+                                        badgeCount={totalUnread}
+                                        />
                                         <SidebarBtn label="Profile" path="/profile" router={router} Icon={AiOutlineUser} setSideBarOpen={setSideBarOpen}/>
                                         <SidebarBtn label="SignIn" path="/login" router={router} Icon={AiOutlineLogin} setSideBarOpen={setSideBarOpen}/>
                                         <SidebarBtnforSignOut label="SignOut" Icon={AiOutlineLogout} setSideBarOpen={setSideBarOpen}/>
@@ -190,7 +217,15 @@ function Navbar({user}: {user: IUser}) {
 export default Navbar
 
 // Components
-const NavItem = ({label , path , router}:any) => (
+const NavItem = ({
+    label,
+    path,
+    router,
+}: {
+    label: string;
+    path: string;
+    router: AppRouter;
+}) => (
     <motion.button 
     whileHover={{scale: 1.08, color: '#60a5fa'}}
     whileTap={{scale: 0.95}}
@@ -207,29 +242,83 @@ const NavItem = ({label , path , router}:any) => (
     </motion.button>
 )
 
-const IconBtn = ({Icon , onClick}: any)=>(
+const IconBtn = ({
+    Icon,
+    onClick,
+    onclick,
+}: {
+    Icon: IconType;
+    onClick?: () => void;
+    onclick?: () => void;
+})=>(
     <motion.button 
     whileHover={{scale: 1.15, color: '#60a5fa'}}
     whileTap={{scale: 0.9}}
-    onClick={onClick}
+    onClick={onClick ?? onclick}
     className='transition-colors hover:text-blue-400'
     >
         <Icon size={24}/>
     </motion.button>
 )
 
-const DropDownBtn = ({Icon , label , onClick}:any)=>(
+const UnreadBadge = ({ count }: { count: number }) => (
+    <motion.span
+    initial={{ scale: 0 }}
+    animate={{ scale: 1 }}
+    className='absolute -top-2 -right-2 min-w-5 h-5 rounded-full bg-red-500 px-1.5
+    text-[10px] font-bold leading-5 text-white shadow-lg shadow-red-500/40 ring-2 ring-black'
+    >
+        {count > 99 ? "99+" : count}
+    </motion.span>
+)
+
+const AvatarIconButton = ({ onClick, unreadCount }: { onClick: () => void; unreadCount: number }) => (
+    <motion.button
+    whileHover={{scale: 1.15, color: '#60a5fa'}}
+    whileTap={{scale: 0.9}}
+    onClick={onClick ?? onclick}
+    className='relative transition-colors hover:text-blue-400'
+    >
+        <AiOutlineUser size={24}/>
+        {unreadCount > 0 && <UnreadBadge count={unreadCount} />}
+    </motion.button>
+)
+
+const MenuBadge = ({ count }: { count: number }) => {
+    if (count <= 0) return null;
+
+    return (
+        <span className='ml-auto min-w-5 rounded-full bg-red-500 px-1.5 py-0.5
+        text-center text-[10px] font-bold text-white shadow shadow-red-500/30'>
+            {count > 99 ? "99+" : count}
+        </span>
+    )
+}
+
+const DropDownBtn = ({
+    Icon,
+    label,
+    onClick,
+    badgeCount = 0,
+}: {
+    Icon: IconType;
+    label: string;
+    onClick: () => void;
+    badgeCount?: number;
+})=>(
     <motion.button 
     whileHover={{x: 5, backgroundColor: 'rgba(59, 130, 246, 0.1)'}}
     className='flex items-center gap-3 w-full px-4 py-3 hover:bg-blue-500/10 
     text-left transition-colors font-medium' 
     onClick={() => onClick()}
     >
-        <Icon size={20} className='text-blue-400'/>{label}
+        <Icon size={20} className='text-blue-400'/>
+        <span>{label}</span>
+        <MenuBadge count={badgeCount} />
     </motion.button>
 )
 
-const CartBtn = ({router , count}: any) =>(
+const CartBtn = ({router , count}: { router: AppRouter; count: number }) =>(
     <motion.button 
     whileHover={{scale: 1.15}} 
     whileTap={{scale: 0.9}}
@@ -250,7 +339,21 @@ const CartBtn = ({router , count}: any) =>(
     </motion.button>
 )
 
-const SidebarBtn = ({label , path , router , Icon , setSideBarOpen}:any)=>(
+const SidebarBtn = ({
+    label,
+    path,
+    router,
+    Icon,
+    setSideBarOpen,
+    badgeCount = 0,
+}: {
+    label: string;
+    path: string;
+    router: AppRouter;
+    Icon: IconType;
+    setSideBarOpen: Dispatch<SetStateAction<boolean>>;
+    badgeCount?: number;
+})=>(
     <motion.button 
     whileHover={{x: 8, backgroundColor: 'rgba(59, 130, 246, 0.15)'}}
     whileTap={{scale: 0.95}}
@@ -261,11 +364,21 @@ const SidebarBtn = ({label , path , router , Icon , setSideBarOpen}:any)=>(
         setSideBarOpen(false)
     }}
     >
-        <Icon size={20} className='text-blue-400'/>{label}
+        <Icon size={20} className='text-blue-400'/>
+        <span>{label}</span>
+        <MenuBadge count={badgeCount} />
     </motion.button>
 )
 
-const SidebarBtnforSignOut = ({label , Icon , setSideBarOpen}:any)=>(
+const SidebarBtnforSignOut = ({
+    label,
+    Icon,
+    setSideBarOpen,
+}: {
+    label: string;
+    Icon: IconType;
+    setSideBarOpen: Dispatch<SetStateAction<boolean>>;
+})=>(
     <motion.button 
     whileHover={{x: 8, backgroundColor: 'rgba(239, 68, 68, 0.1)'}}
     whileTap={{scale: 0.95}}

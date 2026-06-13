@@ -1,7 +1,7 @@
 "use client";
 import { motion, AnimatePresence } from "motion/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   FaCheckCircle,
   FaChevronRight,
@@ -160,7 +160,7 @@ function formatVnpayDate(raw: string): string {
 }
 
 /* ══════════════════════════════════════════ */
-export default function OrdersPage() {
+function OrdersPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [orders, setOrders] = useState<IOrder[]>([]);
@@ -810,6 +810,23 @@ export default function OrdersPage() {
 /* ════════════════════════════════════════════════════════════
    MODAL — Check Details
 ════════════════════════════════════════════════════════════ */
+export default function OrdersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 text-gray-400">
+            <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm">Đang tải đơn hàng...</p>
+          </div>
+        </div>
+      }
+    >
+      <OrdersPageContent />
+    </Suspense>
+  );
+}
+
 function DetailModal({
   order,
   onClose,

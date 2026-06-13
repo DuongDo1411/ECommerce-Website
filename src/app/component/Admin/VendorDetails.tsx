@@ -51,6 +51,12 @@ const STATUS_CONFIG = {
     cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
     dot: "bg-yellow-400",
   },
+  rejected: {
+    label: "Rejected",
+    icon: <FaTimes size={12} />,
+    cls: "bg-red-500/15 text-red-400 border-red-500/30",
+    dot: "bg-red-400",
+  },
 };
 
 function fmtDate(d: string | null) {

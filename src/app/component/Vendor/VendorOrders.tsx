@@ -101,7 +101,8 @@ const STATUS_LABEL: Record<string, string> = {
 function allowedTransitions(current: string): string[] {
   if (current === "pending") return ["confirmed", "cancelled"];
   if (current === "confirmed") return ["shipped", "cancelled"];
-  return []; // shipped/delivered/returned/cancelled → vendor is done
+  if (current === "shipped") return ["delivered", "cancelled"];
+  return []; // delivered/returned/cancelled → vendor is done
 }
 
 /* ─── Helpers ─── */
@@ -400,7 +401,7 @@ function VendorOrders() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-xl border
+            className={`fixed top-20 right-4 lg:top-6 lg:right-6 z-50 max-w-[calc(100vw-2rem)] px-4 py-3 rounded-xl text-sm font-medium shadow-xl border
               ${toast.ok
                 ? "bg-emerald-900/90 border-emerald-500/40 text-emerald-300"
                 : "bg-red-900/90 border-red-500/40 text-red-300"

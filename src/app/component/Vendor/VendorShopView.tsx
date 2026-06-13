@@ -202,7 +202,7 @@ export default function VendorShopView({ user }: { user: IUser }) {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl text-sm font-semibold shadow-lg ${
+            className={`fixed top-20 right-4 lg:top-6 lg:right-6 z-50 max-w-[calc(100vw-2rem)] px-5 py-3 rounded-xl text-sm font-semibold shadow-lg ${
               toast.type === "success"
                 ? "bg-emerald-600 text-white"
                 : "bg-red-600 text-white"
@@ -295,11 +295,11 @@ export default function VendorShopView({ user }: { user: IUser }) {
           </div>
 
           {/* Info */}
-          <div>
+          <div className="text-center sm:text-left">
             <h1 className="text-3xl sm:text-4xl font-black text-white mb-2 drop-shadow-lg">
               {shopName}
             </h1>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300">
+            <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-gray-300 sm:justify-start">
               <span className="flex items-center gap-1.5">
                 <FaBoxOpen size={13} className="text-emerald-400" />
                 {products.length} sản phẩm
@@ -312,7 +312,7 @@ export default function VendorShopView({ user }: { user: IUser }) {
               )}
             </div>
             <p className="mt-3 text-xs text-emerald-400/70 italic">
-              Hover vào logo để đổi ảnh • Nhấn "Đổi ảnh nền" để thay background
+              Chạm vào logo để đổi ảnh • Nhấn "Đổi ảnh nền" để thay background
             </p>
           </div>
         </div>

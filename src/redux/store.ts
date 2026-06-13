@@ -1,12 +1,14 @@
 import { configureStore } from '@reduxjs/toolkit'
 import userSlice from './userSlice'
 import vendorSlice from './vendorSlice'
+import chatSlice from './chatSlice'
 
 
 export const store = configureStore({
   reducer: {
     user:userSlice,
-    vendor:vendorSlice
+    vendor:vendorSlice,
+    chat:chatSlice
   },
 })
 

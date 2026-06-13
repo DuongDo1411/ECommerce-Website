@@ -11,7 +11,9 @@
       "Read(//mnt/c/MultiVendor_Ecoshop_DATN/ecommerce_shop/src/**)",
       "PowerShell(Get-ChildItem \"c:\\\\MultiVendor_Ecoshop_DATN\\\\ecommerce_shop\\\\src\\\\app\\\\api\\\\orders\" -Recurse -Force | ForEach-Object { $_.FullName })",
       "Bash(node -e \"const fa6 = require\\('react-icons/fa6'\\); console.log\\(Object.keys\\(fa6\\).filter\\(k => k.toLowerCase\\(\\).includes\\('bag'\\) || k.toLowerCase\\(\\).includes\\('shop'\\) || k.toLowerCase\\(\\).includes\\('cart'\\)\\).join\\('\\\\n'\\)\\)\")",
-      "WebFetch(domain:api.ghn.vn)"
+      "WebFetch(domain:api.ghn.vn)",
+      "Bash(npx eslint *)",
+      "Bash(npm run *)"
     ]
   }
 }

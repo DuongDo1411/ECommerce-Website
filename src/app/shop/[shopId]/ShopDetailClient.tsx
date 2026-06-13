@@ -10,6 +10,7 @@ import {
 } from "react-icons/fa";
 import { AiOutlineShop } from "react-icons/ai";
 import ProductCard from "@/app/component/ProductCard";
+import ChatButton from "@/app/component/Chat/ChatButton";
 
 /* ─── Types ─── */
 interface Product {
@@ -164,6 +165,13 @@ export default function ShopDetailClient({
 
   return (
     <div className="pb-20">
+      <ChatButton
+        vendorId={vendor._id}
+        currentUserId={currentUserId}
+        vendorName={shopName}
+        vendorImage={vendor.image}
+      />
+
       {/* ═══ Hero Banner ═══ */}
       <section className="relative overflow-hidden border-b border-white/10">
         {/* Background: inline style to avoid Tailwind gradient conflict */}

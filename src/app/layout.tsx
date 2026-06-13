@@ -5,6 +5,7 @@ import Provider from "@/Provider";
 import StoreProvider from "@/redux/StoreProvider";
 import InitUser from "@/InitUser";
 import { CartProvider } from "@/context/CartContext";
+import { ChatProvider } from "@/app/component/Chat/ChatContext";
 
 export const metadata: Metadata = {
   title: "multicart",
@@ -22,8 +23,10 @@ export default function RootLayout({
         <Provider>
           <StoreProvider>
             <CartProvider>
-              <InitUser />
-              {children}
+              <ChatProvider>
+                <InitUser />
+                {children}
+              </ChatProvider>
             </CartProvider>
           </StoreProvider>
         </Provider>

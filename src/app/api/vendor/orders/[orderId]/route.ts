@@ -11,8 +11,8 @@ import Product from "@/model/product.model";
 import User from "@/model/user.model";
 import { NextRequest, NextResponse } from "next/server";
 
-// Vendor may only move an order through these three states.
-const VALID_STATUSES = ["confirmed", "shipped", "cancelled"];
+// Vendor may only move an order through these states.
+const VALID_STATUSES = ["confirmed", "shipped", "delivered", "cancelled"];
 
 export async function PATCH(
   req: NextRequest,
@@ -181,6 +181,24 @@ export async function PATCH(
       await order.save();
       return NextResponse.json(
         { message: "Đã giao cho đơn vị vận chuyển", orderStatus: "shipped" },
+        { status: 200 },
+      );
+    }
+
+    /* ── shipped → delivered: vendor confirms successful delivery ── */
+    if (orderStatus === "delivered") {
+      if (order.orderStatus !== "shipped") {
+        return NextResponse.json(
+          { message: "Chỉ có thể xác nhận giao hàng khi đơn đang ở trạng thái 'Đã giao cho ĐVVC'" },
+          { status: 400 },
+        );
+      }
+      order.orderStatus = "delivered";
+      order.isPaid = true;
+      order.deliveryDate = new Date();
+      await order.save();
+      return NextResponse.json(
+        { message: "Đã xác nhận giao hàng thành công", orderStatus: "delivered" },
         { status: 200 },
       );
     }
