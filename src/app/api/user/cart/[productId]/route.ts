@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import User from "@/model/user.model";
+import type { CartItemSubdoc } from "@/types/cart";
 import { NextResponse } from "next/server";
 
 // PATCH /api/user/cart/[productId]?size=M — Cập nhật số lượng
@@ -29,7 +30,7 @@ export async function PATCH(
     }
 
     const item = user.cart?.find(
-      (c: any) =>
+      (c: CartItemSubdoc) =>
         c.product?.toString() === productId &&
         (c.size ?? null) === (size ?? null),
     );
@@ -67,7 +68,7 @@ export async function DELETE(
     }
 
     user.cart = (user.cart ?? []).filter(
-      (c: any) =>
+      (c: CartItemSubdoc) =>
         !(
           c.product?.toString() === productId &&
           (c.size ?? null) === (size ?? null)

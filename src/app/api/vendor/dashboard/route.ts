@@ -1,5 +1,5 @@
-import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
+import { requireRole } from "@/lib/rbac";
 import Order from "@/model/order.model";
 import Product from "@/model/product.model";
 import mongoose from "mongoose";
@@ -8,11 +8,9 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
-    const session = await auth();
-
-    if (!session || !session.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authz = await requireRole(["vendor"], { mode: "api" });
+    if (authz instanceof NextResponse) return authz;
+    const { session } = authz;
 
     const vendorId = new mongoose.Types.ObjectId(session.user.id);
     const { searchParams } = new URL(req.url);
@@ -126,7 +124,7 @@ export async function GET(req: NextRequest) {
       { $sort: { _id: 1 } },
     ]);
 
-    let revenueChart: { label: string; revenue: number }[] = [];
+    const revenueChart: { label: string; revenue: number }[] = [];
 
     if (period === "day") {
       for (let i = 6; i >= 0; i--) {

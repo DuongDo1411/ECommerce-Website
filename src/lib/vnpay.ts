@@ -83,7 +83,10 @@ export interface VnpayIpnResult {
 export function verifyVnpayReturn(
   query: Record<string, string>,
 ): VnpayIpnResult {
-  const { vnp_SecureHash, vnp_SecureHashType, ...rest } = query;
+  const { vnp_SecureHash } = query;
+  const rest = { ...query };
+  delete rest.vnp_SecureHash;
+  delete rest.vnp_SecureHashType;
 
   // Re-encode values the same way we did when creating the URL
   const { keys, encoded } = sortAndEncode(rest as Record<string, string>);

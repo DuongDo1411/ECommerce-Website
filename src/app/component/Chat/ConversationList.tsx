@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { FaComments } from "react-icons/fa";
 import { ChatConversation } from "@/redux/chatSlice";
 
@@ -78,10 +79,12 @@ export default function ConversationList({
           >
             <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-gray-800 ring-2 ring-white/10 transition group-hover:ring-white/25">
               {other?.image ? (
-                <img
+                <Image
                   src={other.image}
                   alt={other.shopName || other.name || "avatar"}
-                  className="h-full w-full object-cover"
+                  fill
+                  sizes="48px"
+                  className="object-cover"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-500/30 to-blue-500/30 text-sm font-bold text-white">

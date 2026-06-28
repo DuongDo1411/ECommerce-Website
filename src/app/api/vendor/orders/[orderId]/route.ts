@@ -1,4 +1,3 @@
-import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import {
   cancelGHNOrder,
@@ -6,6 +5,12 @@ import {
   GHNError,
   pickServiceId,
 } from "@/lib/ghn";
+import {
+  commitBatchIfTerminalWithDelivery,
+  markRefundForCancelledOrder,
+  releaseBatchIfFullyCancelled,
+} from "@/lib/voucher/lifecycle";
+import { requireRole } from "@/lib/rbac";
 import Order from "@/model/order.model";
 import Product from "@/model/product.model";
 import User from "@/model/user.model";
@@ -14,17 +19,31 @@ import { NextRequest, NextResponse } from "next/server";
 // Vendor may only move an order through these states.
 const VALID_STATUSES = ["confirmed", "shipped", "delivered", "cancelled"];
 
+type PopulatedProduct = {
+  _id?: { toString?: () => string };
+  title?: string;
+  weight?: number;
+  length?: number;
+  width?: number;
+  height?: number;
+};
+
+type VendorOrderItem = {
+  product: PopulatedProduct & { toString: () => string };
+  quantity: number;
+  price: number;
+  size?: string | null;
+};
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ orderId: string }> },
 ) {
   try {
     await connectDB();
-    const session = await auth();
-
-    if (!session || !session.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authz = await requireRole(["vendor"], { mode: "api" });
+    if (authz instanceof NextResponse) return authz;
+    const { session } = authz;
 
     const { orderId } = await params;
     const { orderStatus } = await req.json();
@@ -89,7 +108,8 @@ export async function PATCH(
       let maxL = 0;
       let maxW = 0;
       let maxH = 0;
-      const items = order.products.map((p: any) => {
+      const orderProducts = order.products as unknown as VendorOrderItem[];
+      const items = orderProducts.map((p) => {
         const prod = p.product;
         const w = prod?.weight ?? 500;
         totalWeight += w * p.quantity;
@@ -130,7 +150,7 @@ export async function PATCH(
           codAmount:
             order.paymentMethod === "cod" ? order.totalAmount : 0,
           insuranceValue: order.productsTotal,
-          content: items.map((i: any) => i.name).join(", ").slice(0, 2000),
+          content: items.map((i) => i.name).join(", ").slice(0, 2000),
           clientOrderCode: order._id.toString(),
           items,
         });
@@ -159,10 +179,11 @@ export async function PATCH(
           { status: 200 },
         );
       } catch (err) {
+        console.error(err);
         const msg =
           err instanceof GHNError
             ? `GHN: ${err.message}`
-            : `Lỗi tạo vận đơn GHN: ${err}`;
+            : "Loi tao van don GHN";
         // Order stays pending so the vendor can retry.
         return NextResponse.json({ message: msg }, { status: 500 });
       }
@@ -197,6 +218,7 @@ export async function PATCH(
       order.isPaid = true;
       order.deliveryDate = new Date();
       await order.save();
+      await commitBatchIfTerminalWithDelivery(order.checkoutBatchId);
       return NextResponse.json(
         { message: "Đã xác nhận giao hàng thành công", orderStatus: "delivered" },
         { status: 200 },
@@ -227,11 +249,11 @@ export async function PATCH(
       }
 
       // ── Hoàn lại tồn kho cho từng sản phẩm trong đơn ──
-      for (const item of order.products) {
+      for (const item of order.products as unknown as VendorOrderItem[]) {
         const productId =
-          (item.product as any)?._id?.toString?.() ??
+          item.product._id?.toString?.() ??
           item.product.toString();
-        const size: string | null = (item as any).size ?? null;
+        const size: string | null = item.size ?? null;
 
         if (size) {
           // Sản phẩm có size: hoàn cả sizeStock[size].stock lẫn stock tổng
@@ -260,7 +282,12 @@ export async function PATCH(
 
       order.orderStatus = "cancelled";
       order.cancelledAt = new Date();
+      markRefundForCancelledOrder(order);
       await order.save();
+      const released = await releaseBatchIfFullyCancelled(order.checkoutBatchId);
+      if (!released) {
+        await commitBatchIfTerminalWithDelivery(order.checkoutBatchId);
+      }
       return NextResponse.json(
         { message: "Đã hủy đơn", orderStatus: "cancelled" },
         { status: 200 },
@@ -272,8 +299,9 @@ export async function PATCH(
       { status: 400 },
     );
   } catch (error) {
+    console.error(error);
     return NextResponse.json(
-      { message: `Failed to update order: ${error}` },
+      { message: "Khong the cap nhat don hang" },
       { status: 500 },
     );
   }

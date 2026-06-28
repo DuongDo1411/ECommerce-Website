@@ -47,9 +47,12 @@ function EditRole_Phone() {
             alert(result.data.message);
             setLoading(false);
             router.push("/");
-        } catch (error: any) {
+        } catch (error) {
             setLoading(false);
-            alert(error?.response?.data?.message ?? "Có lỗi xảy ra, vui lòng thử lại");
+            const message = axios.isAxiosError<{ message?: string }>(error)
+                ? error.response?.data?.message
+                : undefined;
+            alert(message ?? "Có lỗi xảy ra, vui lòng thử lại");
             console.log(error);
         }
     }

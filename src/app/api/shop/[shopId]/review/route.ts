@@ -1,7 +1,15 @@
 import connectDB from "@/lib/connectDB";
 import User from "@/model/user.model";
 import { auth } from "@/auth";
+import { getPopulatedUser } from "@/lib/productView";
 import { NextRequest, NextResponse } from "next/server";
+
+interface NewVendorReview {
+  user: string;
+  rating: number;
+  createdAt: Date;
+  comment?: string;
+}
 
 export async function POST(
   req: NextRequest,
@@ -39,7 +47,8 @@ export async function POST(
     }
 
     const alreadyReviewed = vendor.vendorReviews?.some(
-      (r: any) => r.user?.toString() === session.user!.id,
+      (r: { user?: { toString(): string } }) =>
+        r.user?.toString() === session.user!.id,
     );
     if (alreadyReviewed) {
       return NextResponse.json(
@@ -48,7 +57,7 @@ export async function POST(
       );
     }
 
-    const newReview: any = {
+    const newReview: NewVendorReview = {
       user: session.user.id,
       rating,
       createdAt: new Date(),
@@ -62,15 +71,16 @@ export async function POST(
     await vendor.populate({ path: "vendorReviews.user", select: "name image", strictPopulate: false });
 
     const last = vendor.vendorReviews[vendor.vendorReviews.length - 1];
+    const populatedUser = getPopulatedUser(last.user);
     const savedReview = {
       _id: last._id,
       rating: last.rating,
       comment: last.comment,
       createdAt: last.createdAt,
       user: {
-        _id: (last.user as any)?._id,
-        name: (last.user as any)?.name,
-        image: (last.user as any)?.image,
+        _id: populatedUser._id,
+        name: populatedUser.name,
+        image: populatedUser.image,
       },
     };
 

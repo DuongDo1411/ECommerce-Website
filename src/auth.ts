@@ -13,7 +13,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials, request ) {
+      async authorize(credentials) {
         await connectDB();
         const email =  credentials.email as string;
         const password = credentials.password as string;
@@ -48,8 +48,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             existingUser = await User.create({
             name: user.name,
             email: user.email,
-            image: user.image
+            image: user.image,
+            role: "user",
           })
+        } else if(!existingUser.role) {
+            existingUser.role = "user";
+            if (!existingUser.image && user.image) {
+              existingUser.image = user.image;
+            }
+            await existingUser.save();
         } else if(!existingUser.image && user.image) {
             existingUser.image = user.image;
             await existingUser.save();
@@ -65,6 +72,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             token.email = user.email;
             token.name = user.name;
             token.role = user.role;
+        }
+        if (token.id) {
+          await connectDB();
+          const freshUser = await User.findById(token.id).select(
+            "email name role",
+          );
+
+          if (freshUser) {
+            token.email = freshUser.email;
+            token.name = freshUser.name;
+            token.role = freshUser.role;
+          }
         }
         return token;
     },

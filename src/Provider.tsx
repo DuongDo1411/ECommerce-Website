@@ -1,5 +1,4 @@
 'use client'
-import { div } from 'motion/react-client'
 import { SessionProvider } from 'next-auth/react'
 import React from 'react'
 function Provider({children}: {children: React.ReactNode}) {

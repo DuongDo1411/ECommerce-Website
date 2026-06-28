@@ -1,6 +1,4 @@
 "use client";
-import { div } from "motion/react-client";
-import { SessionProvider } from "next-auth/react";
 import React from "react";
 import { store } from "./store";
 import { Provider } from "react-redux";

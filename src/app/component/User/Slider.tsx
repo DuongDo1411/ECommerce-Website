@@ -1,41 +1,40 @@
 'use client'
 import React, { useEffect, useState } from 'react'
 import Slider1 from '@/assets/Sliders/Slider1.jpg'
-import Slider2 from '@/assets/Sliders/Slider2.jpg'
-import Slider3 from '@/assets/Sliders/Slider3.jpg'
 import Slider4 from '@/assets/Sliders/Slider4.jpg'
 import slider5 from '@/assets/Sliders/slider5.jpg'
 import { AnimatePresence, motion } from 'motion/react'
 import Image from 'next/image'
 
+const slides = [
+    {
+        image: Slider1,
+        title: "RUN ON AIR",
+        subtitle: "DO IT NOW.",
+        description: "Running Shoes",
+        button: "DISCOVER"
+        
+    },
+    {
+        image: Slider4,
+        title: "STEP INTO POWER",
+        subtitle: "FEEL THE SPEED",
+        description: "Smart Gadgets for Smart People",
+        button: "DISCOVER"
+        
+    },
+    {
+        image: slider5,
+        title: "STYLE & COMFORT",
+        subtitle: "STEP INTO NEW ERA.",
+        description: "Tommy Shelby 's factions",
+        button: "DISCOVER"
+        
+    },
+];
+
 function Slider() {
     const [current , setCurrent] = useState(0);
-    const slides = [
-        {
-            image: Slider1,
-            title: "RUN ON AIR",
-            subtitle: "DO IT NOW.",
-            description: "Running Shoes",
-            button: "DISCOVER"
-            
-        },
-        {
-            image: Slider4,
-            title: "STEP INTO POWER",
-            subtitle: "FEEL THE SPEED",
-            description: "Smart Gadgets for Smart People",
-            button: "DISCOVER"
-            
-        },
-        {
-            image: slider5,
-            title: "STYLE & COMFORT",
-            subtitle: "STEP INTO NEW ERA.",
-            description: "Tommy Shelby 's factions",
-            button: "DISCOVER"
-            
-        },
-    ];
 
     useEffect(()=>{
         const interval = setInterval(()=>{

@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import Image from "next/image";
 import {
   FaStore,
   FaSearch,
@@ -257,9 +258,15 @@ export default function VendorDetails() {
                   onClick={() => setExpanded(isOpen ? null : vendor._id)}
                 >
                   {/* Avatar */}
-                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-800 flex items-center justify-center shrink-0 border border-white/10">
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-gray-800 flex items-center justify-center shrink-0 border border-white/10">
                     {vendor.image ? (
-                      <img src={vendor.image} alt={vendor.name} className="w-full h-full object-cover" />
+                      <Image
+                        src={vendor.image}
+                        alt={vendor.name}
+                        fill
+                        sizes="48px"
+                        className="object-cover"
+                      />
                     ) : (
                       <FaStore size={20} className="text-blue-400 opacity-60" />
                     )}

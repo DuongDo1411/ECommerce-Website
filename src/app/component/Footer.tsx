@@ -3,7 +3,7 @@ import { IUser } from "@/model/user.model";
 import { useRouter } from "next/navigation";
 import React from "react";
 
-function Footer({ user }: { user: IUser }) {
+function Footer({ user }: { user: IUser | null }) {
   const role = user?.role;
   const isUser = role == "user";
   const isAdminOrVendor = role == "admin" || role == "vendor";

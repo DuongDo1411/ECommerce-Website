@@ -1,5 +1,6 @@
 import connectDB from "@/lib/connectDB";
 import { mapGhnStatusToOrderStatus } from "@/lib/ghn";
+import { commitBatchIfTerminalWithDelivery } from "@/lib/voucher/lifecycle";
 import Order from "@/model/order.model";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -38,6 +39,9 @@ export async function POST(req: NextRequest) {
           }
         }
         await order.save();
+        if (mapped === "delivered") {
+          await commitBatchIfTerminalWithDelivery(order.checkoutBatchId);
+        }
       }
     }
 

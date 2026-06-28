@@ -63,8 +63,9 @@ export async function GET(
       { status: 200 },
     );
   } catch (error) {
+    console.error(error);
     const msg =
-      error instanceof GHNError ? error.message : `GHN track error ${error}`;
+      error instanceof GHNError ? error.message : "Loi theo doi don GHN";
     return NextResponse.json({ message: msg }, { status: 500 });
   }
 }

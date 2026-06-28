@@ -5,7 +5,7 @@ import { RootState } from "@/redux/store";
 import { motion, AnimatePresence } from "motion/react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { AppDispatch } from "@/redux/store";
 import { setAllProductsData } from "@/redux/vendorSlice";
@@ -30,6 +30,26 @@ const CATEGORIES = [
 ];
 const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL"];
 
+/** A single per-size stock entry used by the edit form. */
+type SizeStockRow = { size: string; stock: number };
+
+/**
+ * A product row as it actually arrives in this component's Redux state / API
+ * responses. Shaped from IProduct but with a flexible `vendor` because the data
+ * may carry the vendor either as a raw id string or as a populated object.
+ */
+type VendorProduct = Omit<IProduct, "vendor"> & {
+  vendor?: string | { _id?: string };
+};
+
+/** Response from toggling a product's active status (the updated product). */
+type ToggleActiveResponse = VendorProduct;
+
+/** A React state setter for either a string or a File-or-null value. */
+type StringSetter = React.Dispatch<React.SetStateAction<string>>;
+type FileSetter = React.Dispatch<React.SetStateAction<File | null>>;
+type PreviewSetter = React.Dispatch<React.SetStateAction<string | null>>;
+
 function VendorProducts() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
@@ -37,23 +57,25 @@ function VendorProducts() {
   UseGetAllProducts();
   const currentUser = useSelector((state: RootState) => state.user.userData);
   const { allProductsData } = useSelector((state: RootState) => state.vendor);
-  const myProducts =
-    currentUser?._id && allProductsData?.length
-      ? allProductsData.filter(
-          (p: any) =>
-            p.vendor === currentUser?._id || p.vendor?._id === currentUser?._id,
-        )
-      : [];
+  const myProducts: VendorProduct[] = useMemo(() => {
+    if (!currentUser?._id || !allProductsData?.length) return [];
+
+    return (allProductsData as VendorProduct[]).filter((p) => {
+      const vendorId =
+        typeof p.vendor === "string" ? p.vendor : p.vendor?._id;
+      return vendorId === currentUser._id;
+    });
+  }, [allProductsData, currentUser?._id]);
 
   // ── Edit modal state ──
-  const [editProduct, setEditProduct] = useState<IProduct | null>(null);
+  const [editProduct, setEditProduct] = useState<VendorProduct | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editStock, setEditStock] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editIsWearable, setEditIsWearable] = useState(false);
-  const [editSizeStock, setEditSizeStock] = useState<{ size: string; stock: number }[]>([]);
+  const [editSizeStock, setEditSizeStock] = useState<SizeStockRow[]>([]);
   const [editReplacementDays, setEditReplacementDays] = useState("");
   const [editWarranty, setEditWarranty] = useState("");
   const [editFreeDelivery, setEditFreeDelivery] = useState(false);
@@ -82,7 +104,7 @@ function VendorProducts() {
   /* ── Derived: filtered list ── */
   const filteredProducts = useMemo(() => {
     const q = searchText.trim().toLowerCase();
-    return myProducts.filter((p: any) => {
+    return myProducts.filter((p) => {
       if (q) {
         const matchTitle = p.title?.toLowerCase().includes(q);
         const matchCategory = p.category?.toLowerCase().includes(q);
@@ -110,7 +132,7 @@ function VendorProducts() {
     setFilterCategory("all");
   };
 
-  const openEdit = (p: IProduct) => {
+  const openEdit = (p: VendorProduct) => {
     setEditProduct(p);
     setEditTitle(p.title);
     setEditDescription(p.description);
@@ -120,8 +142,8 @@ function VendorProducts() {
     setEditIsWearable(p.isWearable);
     // Nếu product đã có sizeStock (đã nhập từng size) → dùng nguyên
     // Nếu chưa có (product cũ dùng stock tổng) → phân bổ stock tổng đều vào các size
-    let existingSizeStock: { size: string; stock: number }[];
-    const rawSizeStock = (p as any).sizeStock as { size: string; stock: number }[] | undefined;
+    let existingSizeStock: SizeStockRow[];
+    const rawSizeStock: SizeStockRow[] | undefined = p.sizeStock;
     if (rawSizeStock && rawSizeStock.length > 0) {
       existingSizeStock = rawSizeStock;
     } else {
@@ -153,15 +175,16 @@ function VendorProducts() {
 
   const closeEdit = () => setEditProduct(null);
 
-  const handleToggleActive = async (p: any) => {
+  const handleToggleActive = async (p: VendorProduct) => {
     const id = String(p._id);
     setToggleLoading((prev) => ({ ...prev, [id]: true }));
     try {
-      const { data } = await axios.patch("/api/vendor/toggleActive", {
-        productId: id,
-      });
-      const updated = allProductsData.map((item: any) =>
-        item._id === data._id ? data : item,
+      const { data } = await axios.patch<ToggleActiveResponse>(
+        "/api/vendor/toggleActive",
+        { productId: id },
+      );
+      const updated = allProductsData.map((item) =>
+        String(item._id) === String(data._id) ? (data as IProduct) : item,
       );
       dispatch(setAllProductsData(updated));
     } catch (err) {
@@ -329,7 +352,7 @@ function VendorProducts() {
               },
               {
                 label: "Đang bán",
-                value: myProducts.filter((p: any) => p.isActive).length,
+                value: myProducts.filter((p) => p.isActive).length,
                 color: "text-emerald-400",
                 glow: "rgba(52,211,153,0.15)",
                 border: "rgba(52,211,153,0.2)",
@@ -339,7 +362,7 @@ function VendorProducts() {
               },
               {
                 label: "Chờ duyệt",
-                value: myProducts.filter((p: any) => p.verificationStatus === "pending").length,
+                value: myProducts.filter((p) => p.verificationStatus === "pending").length,
                 color: "text-amber-400",
                 glow: "rgba(251,191,36,0.15)",
                 border: "rgba(251,191,36,0.2)",
@@ -522,8 +545,8 @@ function VendorProducts() {
                     </td>
                   </tr>
                 ) : (
-                  filteredProducts.map((p: any, index: number) => {
-                    const statusCfg = getStatusConfig(p.verificationStatus);
+                  filteredProducts.map((p, index) => {
+                    const statusCfg = getStatusConfig(p.verificationStatus ?? "");
                     return (
                       <motion.tr
                         key={index}
@@ -656,8 +679,8 @@ function VendorProducts() {
               )}
             </div>
           ) : (
-            filteredProducts.map((p: any, index: number) => {
-              const statusCfg = getStatusConfig(p.verificationStatus);
+            filteredProducts.map((p, index) => {
+              const statusCfg = getStatusConfig(p.verificationStatus ?? "");
               return (
                 <motion.div
                   key={index}
@@ -823,7 +846,7 @@ function VendorProducts() {
                       <input
                         type={type}
                         value={val}
-                        onChange={(e) => (set as any)(e.target.value)}
+                        onChange={(e) => (set as StringSetter)(e.target.value)}
                         className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition-all"
                       />
                     </div>
@@ -882,7 +905,7 @@ function VendorProducts() {
                         Chọn size và nhập số lượng tồn kho cho từng size
                       </p>
                       {/* Hint khi product cũ chưa có sizeStock từng size */}
-                      {editProduct && !(editProduct as any).sizeStock?.length && (editProduct.stock ?? 0) > 0 && (
+                      {editProduct && !editProduct.sizeStock?.length && (editProduct.stock ?? 0) > 0 && (
                         <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 mb-2">
                           ℹ️ Tổng tồn kho cũ: <span className="font-bold">{editProduct.stock}</span> sản phẩm. Số lượng đã được chia đều cho các size — vui lòng điều chỉnh lại cho đúng.
                         </p>
@@ -1113,8 +1136,8 @@ function VendorProducts() {
                           onChange={(e) => {
                             const f = e.target.files?.[0];
                             if (!f) return;
-                            (setFile as any)(f);
-                            (setPrev as any)(URL.createObjectURL(f));
+                            (setFile as FileSetter)(f);
+                            (setPrev as PreviewSetter)(URL.createObjectURL(f));
                           }}
                         />
                         <label

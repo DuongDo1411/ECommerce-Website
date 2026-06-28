@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { FaArrowLeft, FaPaperPlane, FaTimes } from "react-icons/fa";
 import { useDispatch } from "react-redux";
@@ -199,7 +200,9 @@ export default function ChatWindow({
 
   useEffect(() => {
     const socket = getSocket();
-    if (!socket.connected) socket.connect();
+    const joinConversation = () => {
+      socket.emit("join_conversation", { conversationId });
+    };
 
     const appendMessage = ({
       message,
@@ -274,13 +277,16 @@ export default function ChatWindow({
       );
     };
 
-    socket.emit("join_conversation", { conversationId });
+    socket.on("connect", joinConversation);
+    if (!socket.connected) socket.connect();
+    if (socket.connected) joinConversation();
     socket.on("new_message", appendMessage);
     socket.on("typing_start", handleTypingStart);
     socket.on("typing_stop", handleTypingStop);
     socket.on("messages_read", handleMessagesRead);
 
     return () => {
+      socket.off("connect", joinConversation);
       socket.off("new_message", appendMessage);
       socket.off("typing_start", handleTypingStart);
       socket.off("typing_stop", handleTypingStop);
@@ -454,12 +460,14 @@ export default function ChatWindow({
               <FaArrowLeft size={15} />
             </button>
           )}
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 text-sm font-bold text-emerald-300">
+          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 text-sm font-bold text-emerald-300">
             {avatarUrl ? (
-              <img
+              <Image
                 src={avatarUrl}
                 alt={title}
-                className="h-full w-full object-cover"
+                fill
+                sizes="36px"
+                className="object-cover"
               />
             ) : (
               title[0]?.toUpperCase()

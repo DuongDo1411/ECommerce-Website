@@ -1,6 +1,6 @@
 "use client";
 import axios from "axios";
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { AppDispatch } from "@/redux/store";
 import { setAllVendorData } from "@/redux/vendorSlice";
@@ -18,7 +18,7 @@ function UseGetAllVendors() {
       }
     };
     fetchAllVendor();
-  }, []);
+  }, [dispatch]);
 }
 
 export default UseGetAllVendors;

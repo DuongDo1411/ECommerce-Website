@@ -6,6 +6,8 @@
 //  - shipping-order APIs (create/fee/cancel/detail/print): `Token` + `ShopId`
 // ghnMasterFetch / ghnOrderFetch encapsulate this difference.
 
+import Product from "@/model/product.model";
+
 const BASE_URL =
   process.env.GHN_BASE_URL ?? "https://dev-online-gateway.ghn.vn";
 const TOKEN = process.env.GHN_API_TOKEN ?? "";
@@ -223,6 +225,130 @@ export async function calculateShippingFee(
     },
   );
   return data.total;
+}
+
+export interface CheckoutAddressForGHN {
+  districtId: number;
+  wardCode: string;
+}
+
+export interface CheckoutItemForGHN {
+  productId: string;
+  quantity: number;
+}
+
+export interface FeeByVendor {
+  vendorId: string;
+  fee: number;
+  serviceId: number;
+  isFreeDelivery: boolean;
+}
+
+// Lean shapes for computeFeesByVendor's Product.find(...).populate("vendor").
+// Only the fields the grouping/fee logic reads are declared.
+interface VendorLean {
+  _id: { toString(): string };
+  shopName?: string;
+  shopAddressDetail?: {
+    districtId?: number;
+    wardCode?: string;
+  };
+}
+
+interface ProductLean {
+  _id: { toString(): string };
+  vendor: VendorLean;
+  price: number;
+  weight?: number;
+  length?: number;
+  width?: number;
+  height?: number;
+  freeDelivery?: boolean;
+}
+
+export async function computeFeesByVendor(
+  address: CheckoutAddressForGHN,
+  items: CheckoutItemForGHN[],
+): Promise<{ feesByVendor: FeeByVendor[]; totalFee: number }> {
+  const productIds = items.map((i) => i.productId);
+  const products = await Product.find({ _id: { $in: productIds } }).populate(
+    "vendor",
+    "shopAddressDetail shopName",
+  );
+
+  const byVendor = new Map<
+    string,
+    {
+      vendor: VendorLean;
+      weight: number;
+      insurance: number;
+      maxDim: number[];
+      hasPaidDelivery: boolean;
+    }
+  >();
+
+  for (const item of items) {
+    const product = products.find(
+      (p: ProductLean) => p._id.toString() === item.productId.toString(),
+    );
+    if (!product) continue;
+
+    const vendor = product.vendor;
+    const vendorId = vendor._id.toString();
+    if (!byVendor.has(vendorId)) {
+      byVendor.set(vendorId, {
+        vendor,
+        weight: 0,
+        insurance: 0,
+        maxDim: [0, 0, 0],
+        hasPaidDelivery: false,
+      });
+    }
+
+    const g = byVendor.get(vendorId)!;
+    g.weight += (product.weight ?? 500) * item.quantity;
+    g.insurance += product.price * item.quantity;
+    g.maxDim = [
+      Math.max(g.maxDim[0], product.length ?? 20),
+      Math.max(g.maxDim[1], product.width ?? 15),
+      Math.max(g.maxDim[2], product.height ?? 10),
+    ];
+    if (!product.freeDelivery) g.hasPaidDelivery = true;
+  }
+
+  const feesByVendor: FeeByVendor[] = [];
+  for (const [vendorId, g] of byVendor) {
+    if (!g.hasPaidDelivery) {
+      feesByVendor.push({ vendorId, fee: 0, serviceId: 0, isFreeDelivery: true });
+      continue;
+    }
+
+    const shop = g.vendor.shopAddressDetail;
+    if (!shop?.districtId || !shop?.wardCode) {
+      throw new GHNError(
+        `Nguoi ban "${g.vendor.shopName ?? ""}" chua cau hinh dia chi kho GHN`,
+        400,
+      );
+    }
+
+    const serviceId = await pickServiceId(shop.districtId, address.districtId);
+    const fee = await calculateShippingFee({
+      serviceId,
+      fromDistrictId: shop.districtId,
+      fromWardCode: shop.wardCode,
+      toDistrictId: address.districtId,
+      toWardCode: address.wardCode,
+      weight: g.weight,
+      length: g.maxDim[0],
+      width: g.maxDim[1],
+      height: g.maxDim[2],
+      insuranceValue: g.insurance,
+    });
+    feesByVendor.push({ vendorId, fee, serviceId, isFreeDelivery: false });
+  }
+
+  const totalFee = feesByVendor.reduce((sum, vendor) => sum + vendor.fee, 0);
+  return { feesByVendor, totalFee };
 }
 
 /* ---------------------------- Create order ----------------------------- */

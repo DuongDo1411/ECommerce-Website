@@ -26,8 +26,9 @@ export async function GET() {
 
     return NextResponse.json({ orders }, { status: 200 });
   } catch (error) {
+    console.error(error);
     return NextResponse.json(
-      { message: `Failed to fetch orders: ${error}` },
+      { message: "Khong the tai don hang" },
       { status: 500 },
     );
   }

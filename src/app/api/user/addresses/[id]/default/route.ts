@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import User from "@/model/user.model";
+import type { AddressSubdoc } from "@/types/address";
 import { NextRequest, NextResponse } from "next/server";
 
 // PATCH /api/user/addresses/[id]/default — set this address as the only default
@@ -21,7 +22,7 @@ export async function PATCH(
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
     let found = false;
-    (user.addresses ?? []).forEach((a: any) => {
+    (user.addresses ?? []).forEach((a: AddressSubdoc) => {
       const isThis = a._id.toString() === id;
       a.isDefault = isThis;
       if (isThis) found = true;

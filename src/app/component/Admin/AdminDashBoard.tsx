@@ -2,10 +2,10 @@
 import React, { useState } from "react";
 import { MdDashboard } from "react-icons/md";
 import {
-  FaUsers,
   FaStore,
   FaCheckCircle,
   FaBox,
+  FaTicketAlt,
 } from "react-icons/fa";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import { AnimatePresence, motion } from "motion/react";
@@ -13,6 +13,7 @@ import Dashboard from "./Dashboard";
 import VendorDetails from "./VendorDetails";
 import VendorApproval from "./VendorApproval";
 import ProductApproval from "./ProductApproval";
+import AdminVouchers from "./AdminVouchers";
 
 function AdminDashBoard() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -28,6 +29,8 @@ function AdminDashBoard() {
         return <VendorApproval />;
       case "product-approval":
         return <ProductApproval />;
+      case "vouchers":
+        return <AdminVouchers />;
     }
   };
 
@@ -44,6 +47,7 @@ function AdminDashBoard() {
       label: "Product Requests",
       icon: <FaBox size={22} />,
     },
+    { id: "vouchers", label: "Voucher Sàn", icon: <FaTicketAlt size={22} /> },
   ];
 
   return (

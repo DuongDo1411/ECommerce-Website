@@ -19,14 +19,14 @@ export async function GET() {
           isActive: true,
         })
           .select("reviews")
-          .lean();
+          .lean<{ reviews?: { rating: number }[] }[]>();
 
         const productCount = products.length;
 
         let totalRating = 0;
         let totalReviews = 0;
         for (const p of products) {
-          const reviews = (p as any).reviews ?? [];
+          const reviews = p.reviews ?? [];
           for (const r of reviews) {
             totalRating += r.rating;
             totalReviews++;

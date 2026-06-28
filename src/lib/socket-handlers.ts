@@ -21,15 +21,19 @@ function isInConversationRoom(socket: Socket, conversationId: unknown) {
 }
 
 export function registerSocketHandlers(io: Server) {
-  io.on("connection", async (socket) => {
+  io.use(async (socket, next) => {
     const user = await getSocketUser(socket);
-
     if (!user) {
-      socket.disconnect(true);
+      next(new Error("Unauthorized"));
       return;
     }
 
     socket.data.user = user;
+    next();
+  });
+
+  io.on("connection", (socket) => {
+    const user = socket.data.user as { id: string };
     socket.join(`user:${user.id}`);
 
     socket.on("join_conversation", async ({ conversationId }) => {

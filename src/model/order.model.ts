@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose from "mongoose";
 import { IProduct } from "./product.model";
 import { IUser } from "./user.model";
 
@@ -17,6 +17,19 @@ export interface IOrder {
   deliveryCharge: number;
   serviceCharge: number;
   totalAmount: number;
+  checkoutBatchId?: string;
+  originalTotal?: number;
+  shopDiscount?: number;
+  platformDiscount?: number;
+  freeshipDiscount?: number;
+  totalDiscount?: number;
+  appliedVouchers?: {
+    voucher: mongoose.Types.ObjectId;
+    code: string;
+    slot: "shop" | "platform" | "freeship";
+    discountType: "fixed" | "percentage" | "freeship";
+    amount: number;
+  }[];
 
   paymentMethod: "cod" | "vnpay";
   isPaid: boolean;
@@ -32,6 +45,7 @@ export interface IOrder {
   cancelledAt?: Date;
   // ✅ NEW: RETURNED AMOUNT
   returnedAmount?: number;
+  refundStatus?: "none" | "pending" | "processed" | "failed";
 
   address: {
     name: string;
@@ -134,6 +148,58 @@ const orderSchema = new mongoose.Schema<IOrder>(
       required: true,
     },
 
+    checkoutBatchId: {
+      type: String,
+      index: true,
+    },
+
+    originalTotal: {
+      type: Number,
+      default: 0,
+    },
+
+    shopDiscount: {
+      type: Number,
+      default: 0,
+    },
+
+    platformDiscount: {
+      type: Number,
+      default: 0,
+    },
+
+    freeshipDiscount: {
+      type: Number,
+      default: 0,
+    },
+
+    totalDiscount: {
+      type: Number,
+      default: 0,
+    },
+
+    appliedVouchers: [
+      {
+        voucher: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Voucher",
+        },
+        code: String,
+        slot: {
+          type: String,
+          enum: ["shop", "platform", "freeship"],
+        },
+        discountType: {
+          type: String,
+          enum: ["fixed", "percentage", "freeship"],
+        },
+        amount: {
+          type: Number,
+          default: 0,
+        },
+      },
+    ],
+
     paymentMethod: {
       type: String,
       enum: ["cod", "vnpay"],
@@ -165,6 +231,12 @@ const orderSchema = new mongoose.Schema<IOrder>(
     returnedAmount: {
       type: Number,
       default: 0,
+    },
+
+    refundStatus: {
+      type: String,
+      enum: ["none", "pending", "processed", "failed"],
+      default: "none",
     },
 
     address: {
@@ -237,6 +309,9 @@ const orderSchema = new mongoose.Schema<IOrder>(
   },
   { timestamps: true },
 );
+
+// Phục vụ thống kê voucher (settled/pending discount theo voucher).
+orderSchema.index({ "appliedVouchers.voucher": 1, orderStatus: 1, createdAt: -1 });
 
 const Order =
   mongoose.models?.Order || mongoose.model<IOrder>("Order", orderSchema);

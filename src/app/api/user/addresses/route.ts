@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import User from "@/model/user.model";
+import type { AddressSubdoc } from "@/types/address";
 import { NextRequest, NextResponse } from "next/server";
 
 // GET /api/user/addresses — list all saved addresses
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
     // First address (or explicit flag) becomes default; clear others if so.
     const makeDefault = user.addresses.length === 0 || body.isDefault === true;
     if (makeDefault) {
-      user.addresses.forEach((a: any) => (a.isDefault = false));
+      user.addresses.forEach((a: AddressSubdoc) => (a.isDefault = false));
     }
 
     user.addresses.push({

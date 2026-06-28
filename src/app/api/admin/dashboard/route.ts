@@ -1,5 +1,5 @@
-import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
+import { requireRole } from "@/lib/rbac";
 import Order from "@/model/order.model";
 import Product from "@/model/product.model";
 import User from "@/model/user.model";
@@ -30,16 +30,8 @@ interface VendorOrderStat {
 export async function GET() {
   try {
     await connectDB();
-
-    const session = await auth();
-    const adminUser = await User.findById(session?.user?.id);
-
-    if (!adminUser || adminUser.role !== "admin") {
-      return NextResponse.json(
-        { message: "Only admin can view dashboard data" },
-        { status: 403 },
-      );
-    }
+    const authz = await requireRole(["admin"], { mode: "api" });
+    if (authz instanceof NextResponse) return authz;
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

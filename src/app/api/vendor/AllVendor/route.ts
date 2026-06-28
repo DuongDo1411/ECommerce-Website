@@ -3,20 +3,38 @@ import Product from "@/model/product.model";
 import User from "@/model/user.model";
 import { NextResponse } from "next/server";
 
+interface LeanVendor {
+  _id: unknown;
+  name?: string;
+  email?: string;
+  phone?: string;
+  image?: string;
+  shopName?: string;
+  shopAddress?: string;
+  shopAddressDetail?: unknown;
+  taxNumber?: string;
+  isApproved?: boolean;
+  verificationStatus?: string;
+  rejectedReason?: string;
+  requestedAt?: Date | null;
+  approvedAt?: Date | null;
+  createdAt?: Date | null;
+}
+
 export async function GET() {
   try {
     await connectDB();
     const vendors = await User.find({ role: "vendor", verificationStatus: { $ne: "rejected" } })
       .select("_id name email phone image shopName shopAddress shopAddressDetail taxNumber isApproved verificationStatus rejectedReason requestedAt approvedAt createdAt")
       .sort({ createdAt: -1 })
-      .lean();
+      .lean<LeanVendor[]>();
 
     if (!vendors) {
       return NextResponse.json({ message: "Vendors not found" }, { status: 400 });
     }
 
     const enriched = await Promise.all(
-      vendors.map(async (v: any) => {
+      vendors.map(async (v) => {
         const [totalProducts, approvedProducts] = await Promise.all([
           Product.countDocuments({ vendor: v._id }),
           Product.countDocuments({ vendor: v._id, verificationStatus: "approved", isActive: true }),

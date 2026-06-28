@@ -1,5 +1,6 @@
 "use client";
 import { motion, AnimatePresence } from "motion/react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -42,6 +43,17 @@ interface IOrder {
   deliveryCharge: number;
   serviceCharge: number;
   totalAmount: number;
+  shopDiscount?: number;
+  platformDiscount?: number;
+  freeshipDiscount?: number;
+  totalDiscount?: number;
+  appliedVouchers?: {
+    voucher: string;
+    code: string;
+    slot: "shop" | "platform" | "freeship";
+    discountType: "fixed" | "percentage" | "freeship";
+    amount: number;
+  }[];
   paymentMethod: "cod" | "vnpay";
   orderStatus:
     | "pending"
@@ -116,12 +128,18 @@ const STATUS_CONFIG: Record<
 const TRACKING_STEPS = [
   { key: "pending", label: "Đang chờ xác nhận", Icon: MdPendingActions },
   { key: "confirmed", label: "Đã xác nhận & giao cho ĐVVC", Icon: FaTruck },
+  { key: "shipped", label: "Đang vận chuyển", Icon: FaShippingFast },
+  { key: "delivered", label: "Đã giao thành công", Icon: FaCheckCircle },
 ];
 
 function getStepIndex(status: string) {
-  if (status === "pending") return 0;
-  if (["confirmed", "shipped", "delivered"].includes(status)) return 1;
-  return 0;
+  const map: Record<string, number> = {
+    pending: 0,
+    confirmed: 1,
+    shipped: 2,
+    delivered: 3,
+  };
+  return map[status] ?? 0;
 }
 
 /* ─── Helpers ─── */
@@ -709,8 +727,14 @@ function OrdersPageContent() {
                     {order.products.slice(0, 2).map((p) => (
                       <div key={`${p.product._id}-${p.size ?? ""}`} className="flex items-center gap-2">
                         {p.product.image1 && (
-                          <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-800 border border-white/10 shrink-0">
-                            <img src={p.product.image1} alt={p.product.title} className="w-full h-full object-cover" />
+                          <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-gray-800 border border-white/10 shrink-0">
+                            <Image
+                              src={p.product.image1}
+                              alt={p.product.title}
+                              fill
+                              sizes="32px"
+                              className="object-cover"
+                            />
                           </div>
                         )}
                         <p className="text-xs text-gray-300 truncate flex-1">
@@ -905,11 +929,13 @@ function DetailModal({
             <div className="space-y-3">
               {order.products.map((p) => (
                 <div key={`${p.product._id}-${p.size ?? ""}`} className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-800 border border-white/10 shrink-0">
-                    <img
+                  <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-gray-800 border border-white/10 shrink-0">
+                    <Image
                       src={p.product.image1}
                       alt={p.product.title}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="56px"
+                      className="object-cover"
                     />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -962,6 +988,30 @@ function DetailModal({
                 <span className="text-gray-400">Phí dịch vụ</span>
                 <span>{fmt(order.serviceCharge)}</span>
               </div>
+              {(order.shopDiscount ?? 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-emerald-300">Voucher shop</span>
+                  <span className="text-emerald-300">-{fmt(order.shopDiscount ?? 0)}</span>
+                </div>
+              )}
+              {(order.platformDiscount ?? 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-emerald-300">Voucher sàn</span>
+                  <span className="text-emerald-300">-{fmt(order.platformDiscount ?? 0)}</span>
+                </div>
+              )}
+              {(order.freeshipDiscount ?? 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-emerald-300">Giảm phí ship (freeship)</span>
+                  <span className="text-emerald-300">-{fmt(order.freeshipDiscount ?? 0)}</span>
+                </div>
+              )}
+              {(order.totalDiscount ?? 0) > 0 && (
+                <div className="flex justify-between text-sm font-semibold">
+                  <span className="text-emerald-300">Tổng giảm</span>
+                  <span className="text-emerald-300">-{fmt(order.totalDiscount ?? 0)}</span>
+                </div>
+              )}
               <div className="h-px bg-white/10 my-1" />
               <div className="flex justify-between items-center">
                 <span className="font-bold text-white">Tổng thanh toán</span>
@@ -969,6 +1019,18 @@ function DetailModal({
                   {fmt(order.totalAmount)}
                 </span>
               </div>
+              {order.appliedVouchers && order.appliedVouchers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {order.appliedVouchers.map((v) => (
+                    <span
+                      key={`${v.code}-${v.slot}`}
+                      className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300"
+                    >
+                      {v.code}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1272,7 +1334,9 @@ function TrackModal({
                 <FaTimesCircle size={20} className="text-red-400 shrink-0" />
                 <div>
                   <p className="font-semibold text-red-400 text-sm">
-                    Đơn hàng đã bị hủy
+                    {order.orderStatus === "returned"
+                      ? "Đơn hàng đã được trả lại"
+                      : "Đơn hàng đã bị hủy"}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {new Date(order.createdAt).toLocaleDateString("vi-VN")}
@@ -1280,17 +1344,17 @@ function TrackModal({
                 </div>
               </div>
             ) : (
-              /* Normal timeline — 2 bước */
+              /* Normal timeline */
               <div className="relative">
                 {TRACKING_STEPS.map((step, idx) => {
                   const isDone = idx <= currentStep;
                   const isActive = idx === currentStep;
                   const isLast = idx === TRACKING_STEPS.length - 1;
 
-                  /* Mã GHN hiển thị ngay trong bước 2 khi active */
+                  /* Mã GHN hiển thị ngay trong bước active sau khi xác nhận */
                   const showGhnInline =
                     isActive &&
-                    idx === 1 &&
+                    idx >= 1 &&
                     !!order.ghn?.orderCode &&
                     !!order.ghn?.visibleToCustomer;
 
@@ -1352,7 +1416,7 @@ function TrackModal({
                             </motion.p>
                           )}
 
-                          {/* Mã vận đơn GHN ngay trong bước 2 */}
+                          {/* Mã vận đơn GHN ngay trong bước active */}
                           {showGhnInline && (
                             <motion.div
                               initial={{ opacity: 0, y: 4 }}

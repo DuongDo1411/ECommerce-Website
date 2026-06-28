@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { FaCheck, FaCheckDouble } from "react-icons/fa";
 
 export interface ChatMessage {
@@ -54,10 +55,12 @@ export default function MessageBubble({
         >
           {message.type === "image" ? (
             <a href={message.content} target="_blank" rel="noreferrer">
-              <img
+              <Image
                 src={message.content}
                 alt="Chat upload"
-                className="max-h-64 rounded-xl object-contain"
+                width={320}
+                height={240}
+                className="h-auto max-h-64 max-w-full rounded-xl object-contain"
                 onLoad={onMediaLoad}
               />
             </a>

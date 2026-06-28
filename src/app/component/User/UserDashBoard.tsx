@@ -3,6 +3,7 @@ import React from "react";
 import Slider from "./Slider";
 import CategorySlider from "./CategorySlider";
 import ProductCardPage from "./ProductCardPage";
+import PlatformVoucherStrip from "@/app/component/Voucher/PlatformVoucherStrip";
 
 function UserDashBoard() {
   return (
@@ -11,6 +12,7 @@ function UserDashBoard() {
     to-gray-900 font-sans flex-col"
     >
       <Slider />
+      <PlatformVoucherStrip />
       <CategorySlider />
       <ProductCardPage />
     </div>

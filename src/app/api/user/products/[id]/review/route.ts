@@ -2,7 +2,16 @@ import connectDB from "@/lib/connectDB";
 import uploadOnCloudinary from "@/lib/cloudinary";
 import Product from "@/model/product.model";
 import { auth } from "@/auth";
+import { getPopulatedUser } from "@/lib/productView";
 import { NextResponse } from "next/server";
+
+interface NewProductReview {
+  user: string;
+  rating: number;
+  createdAt: Date;
+  comment?: string;
+  image?: string;
+}
 
 export async function POST(
   req: Request,
@@ -46,7 +55,8 @@ export async function POST(
 
     // Kiểm tra user đã review chưa
     const alreadyReviewed = product.reviews?.some(
-      (r: any) => r.user?.toString() === session.user!.id,
+      (r: { user?: { toString(): string } }) =>
+        r.user?.toString() === session.user!.id,
     );
     if (alreadyReviewed) {
       return NextResponse.json(
@@ -55,7 +65,7 @@ export async function POST(
       );
     }
 
-    const newReview: any = {
+    const newReview: NewProductReview = {
       user: session.user.id,
       rating,
       createdAt: new Date(),
@@ -72,6 +82,7 @@ export async function POST(
 
     const lastReview = product.reviews[product.reviews.length - 1];
     // Serialize thủ công để đảm bảo user populated không bị mất khi JSON
+    const populatedUser = getPopulatedUser(lastReview.user);
     const savedReview = {
       _id: lastReview._id,
       rating: lastReview.rating,
@@ -79,9 +90,9 @@ export async function POST(
       image: lastReview.image,
       createdAt: lastReview.createdAt,
       user: {
-        _id: (lastReview.user as any)?._id,
-        name: (lastReview.user as any)?.name,
-        image: (lastReview.user as any)?.image,
+        _id: populatedUser._id,
+        name: populatedUser.name,
+        image: populatedUser.image,
       },
     };
 

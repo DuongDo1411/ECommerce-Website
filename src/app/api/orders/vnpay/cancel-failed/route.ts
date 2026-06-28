@@ -1,8 +1,18 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
+import { releaseBatchIfFullyCancelled } from "@/lib/voucher/lifecycle";
 import Order from "@/model/order.model";
 import Product from "@/model/product.model";
 import { NextRequest, NextResponse } from "next/server";
+
+// One product line on an order. `product` is an ObjectId when unpopulated and a
+// populated document otherwise; both expose toString(), and only the populated
+// form carries an `_id` — matching the original defensive id extraction.
+interface OrderProductLine {
+  product: { _id?: { toString(): string }; toString(): string };
+  quantity: number;
+  size?: string | null;
+}
 
 /**
  * POST /api/orders/vnpay/cancel-failed
@@ -37,10 +47,10 @@ export async function POST(req: NextRequest) {
     }
 
     for (const order of orders) {
-      for (const item of order.products) {
+      for (const item of order.products as OrderProductLine[]) {
         const productId =
-          (item.product as any)?._id?.toString?.() ?? item.product.toString();
-        const size: string | null = (item as any).size ?? null;
+          item.product._id?.toString() ?? item.product.toString();
+        const size: string | null = item.size ?? null;
 
         if (size) {
           await Product.findByIdAndUpdate(
@@ -67,10 +77,16 @@ export async function POST(req: NextRequest) {
       await order.save();
     }
 
+    const checkoutBatchId = orders[0]?.checkoutBatchId;
+    if (checkoutBatchId) {
+      await releaseBatchIfFullyCancelled(checkoutBatchId);
+    }
+
     return NextResponse.json({ cancelled: orders.length }, { status: 200 });
   } catch (error) {
+    console.error(error);
     return NextResponse.json(
-      { message: `Lỗi hủy đơn VNPay: ${error}` },
+      { message: "Khong the huy don VNPay" },
       { status: 500 },
     );
   }

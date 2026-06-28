@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { MdArrowBack, MdDashboard, MdMessage } from "react-icons/md";
 import { FaBoxOpen, FaShoppingCart, FaStore } from "react-icons/fa";
+import { FaTicketAlt } from "react-icons/fa";
 import { AiOutlineClose, AiOutlineMenu } from "react-icons/ai";
 import { AnimatePresence, motion } from "motion/react";
 import { useSelector } from "react-redux";
@@ -11,6 +12,7 @@ import VendorMessages from "./VendorMessages";
 import VendorOrders from "./VendorOrders";
 import VendorProducts from "./VendorProducts";
 import VendorShopView from "./VendorShopView";
+import VendorVouchers from "./VendorVouchers";
 import { IUser } from "@/model/user.model";
 import type { RootState } from "@/redux/store";
 
@@ -18,6 +20,7 @@ const menu = [
   { id: "dashboard", label: "Dashboard", icon: <MdDashboard size={22} /> },
   { id: "products", label: "Products", icon: <FaBoxOpen size={22} /> },
   { id: "orders", label: "Orders", icon: <FaShoppingCart size={22} /> },
+  { id: "vouchers", label: "Khuyến mãi", icon: <FaTicketAlt size={22} /> },
   { id: "messages", label: "Messages", icon: <MdMessage size={22} /> },
 ];
 
@@ -78,6 +81,8 @@ function VendorDashBoard({ user }: { user: IUser }) {
         return <VendorProducts />;
       case "orders":
         return <VendorOrders />;
+      case "vouchers":
+        return <VendorVouchers />;
       case "messages":
         return <VendorMessages />;
       case "myshop":

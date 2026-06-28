@@ -1,6 +1,6 @@
-import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import { getPrintUrl, GHNError } from "@/lib/ghn";
+import { requireRole } from "@/lib/rbac";
 import Order from "@/model/order.model";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -11,10 +11,9 @@ export async function GET(
 ) {
   try {
     await connectDB();
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authz = await requireRole(["vendor"], { mode: "api" });
+    if (authz instanceof NextResponse) return authz;
+    const { session } = authz;
     const { orderId } = await params;
     const order = await Order.findOne({
       _id: orderId,
@@ -29,8 +28,9 @@ export async function GET(
     const url = await getPrintUrl(order.ghn.orderCode);
     return NextResponse.json({ url }, { status: 200 });
   } catch (error) {
+    console.error(error);
     const msg =
-      error instanceof GHNError ? error.message : `GHN label error ${error}`;
+      error instanceof GHNError ? error.message : "Loi tao nhan GHN";
     return NextResponse.json({ message: msg }, { status: 500 });
   }
 }

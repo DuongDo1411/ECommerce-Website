@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import User from "@/model/user.model";
 import Product from "@/model/product.model";
+import type { CartItemSubdoc } from "@/types/cart";
 import { NextResponse } from "next/server";
 
 // GET /api/user/cart — Lấy giỏ hàng + populate thông tin sản phẩm
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
 
     // Tìm cart item theo (productId, size) — cùng sản phẩm khác size là 2 dòng riêng
     const existingIndex = user.cart.findIndex(
-      (item: any) =>
+      (item: CartItemSubdoc) =>
         item.product?.toString() === productId &&
         (item.size ?? null) === (size ?? null),
     );

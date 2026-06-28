@@ -1,20 +1,17 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import Image from "next/image";
 import {
-  FaBoxOpen,
   FaCheckCircle,
   FaClipboardList,
-  FaCreditCard,
   FaMoneyBillWave,
   FaPhoneAlt,
   FaSave,
   FaSearch,
   FaTimes,
-  FaTruck,
   FaUser,
 } from "react-icons/fa";
-import { MdPendingActions } from "react-icons/md";
 
 /* ─── Types ─── */
 interface OrderProduct {
@@ -37,12 +34,29 @@ interface VendorOrder {
     | "returned"
     | "cancelled";
   totalAmount: number;
+  shopDiscount?: number;
+  platformDiscount?: number;
+  freeshipDiscount?: number;
   createdAt: string;
   ghn?: {
     orderCode?: string;
     fee?: number;
     status?: string;
   };
+}
+
+/* ─── API response shapes ─── */
+interface OrdersResponse {
+  orders?: VendorOrder[];
+}
+
+interface UpdateStatusResponse {
+  message?: string;
+}
+
+interface PrintLabelResponse {
+  url?: string;
+  message?: string;
 }
 
 /* ─── Config ─── */
@@ -136,7 +150,7 @@ function VendorOrders() {
     setLoading(true);
     try {
       const res = await fetch("/api/vendor/orders");
-      const data = await res.json();
+      const data: OrdersResponse = await res.json();
       const list: VendorOrder[] = data.orders ?? [];
       setOrders(list);
       /* initialise selected map */
@@ -162,7 +176,9 @@ function VendorOrders() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderStatus: newStatus }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data: UpdateStatusResponse = await res
+        .json()
+        .catch(() => ({} as UpdateStatusResponse));
       if (!res.ok) {
         throw new Error(data?.message ?? "Cập nhật thất bại");
       }
@@ -175,8 +191,9 @@ function VendorOrders() {
           : "Cập nhật trạng thái thành công!",
         true,
       );
-    } catch (e: any) {
-      showToast(orderId, e?.message ?? "Cập nhật thất bại", false);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Cập nhật thất bại";
+      showToast(orderId, msg, false);
       // Revert the dropdown to the real status.
       setSelected((prev) => {
         const cur = orders.find((o) => o._id === orderId)?.orderStatus;
@@ -192,13 +209,14 @@ function VendorOrders() {
     setLabelLoading((p) => ({ ...p, [orderId]: true }));
     try {
       const res = await fetch(`/api/vendor/orders/${orderId}/label`);
-      const data = await res.json();
+      const data: PrintLabelResponse = await res.json();
       if (!res.ok || !data.url) {
         throw new Error(data?.message ?? "Không lấy được nhãn in");
       }
       window.open(data.url, "_blank");
-    } catch (e: any) {
-      showToast(orderId, e?.message ?? "Lỗi in nhãn", false);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Lỗi in nhãn";
+      showToast(orderId, msg, false);
     } finally {
       setLabelLoading((p) => ({ ...p, [orderId]: false }));
     }
@@ -616,8 +634,6 @@ function VendorOrders() {
         ) : filteredOrders.map((order, i) => {
           const st = STATUS_CONFIG[order.orderStatus] ?? STATUS_CONFIG.pending;
           const isDirty = selected[order._id] !== order.orderStatus;
-          const isLocked =
-            order.orderStatus === "returned" || order.orderStatus === "cancelled";
 
           return (
             <motion.div
@@ -671,11 +687,13 @@ function VendorOrders() {
                   {order.products.map((p, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       {p.product?.image1 && (
-                        <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-800 border border-white/10 shrink-0">
-                          <img
+                        <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-gray-800 border border-white/10 shrink-0">
+                          <Image
                             src={p.product.image1}
                             alt={p.product.title}
-                            className="w-full h-full object-cover"
+                            fill
+                            sizes="32px"
+                            className="object-cover"
                           />
                         </div>
                       )}
@@ -708,6 +726,24 @@ function VendorOrders() {
                     {fmt(order.totalAmount)}
                   </span>
                 </div>
+
+                {/* Nguồn tài trợ giảm giá: shop voucher (shop chịu) vs sàn/freeship (sàn chịu) */}
+                {((order.shopDiscount ?? 0) > 0 ||
+                  (order.platformDiscount ?? 0) + (order.freeshipDiscount ?? 0) > 0) && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+                    {(order.shopDiscount ?? 0) > 0 && (
+                      <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-300">
+                        Shop tài trợ {fmt(order.shopDiscount ?? 0)}
+                      </span>
+                    )}
+                    {(order.platformDiscount ?? 0) + (order.freeshipDiscount ?? 0) > 0 && (
+                      <span className="rounded-full border border-blue-500/25 bg-blue-500/10 px-2 py-0.5 font-semibold text-blue-300">
+                        Sàn tài trợ{" "}
+                        {fmt((order.platformDiscount ?? 0) + (order.freeshipDiscount ?? 0))}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Update status */}
                 {(() => {

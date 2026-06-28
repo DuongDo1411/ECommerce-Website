@@ -1,11 +1,28 @@
 "use client";
 import { motion, AnimatePresence } from "motion/react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FaArrowLeft, FaShoppingCart, FaTrash } from "react-icons/fa";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FaArrowLeft, FaShoppingCart, FaTicketAlt, FaTrash } from "react-icons/fa";
 import AddressPickerModal from "@/app/component/AddressPickerModal";
 import type { Address } from "@/app/component/AddressBook";
+import VoucherCard from "@/app/component/VoucherCard";
+import { sortVouchers } from "@/app/component/Voucher/sortVouchers";
+import { useCollectVoucher } from "@/app/component/Voucher/useCollectVoucher";
+
+type VoucherSuggestion = {
+  _id: string;
+  code: string;
+  title: string;
+  description?: string;
+  discountType: "fixed" | "percentage" | "freeship";
+  discountValue: number;
+  maxDiscount?: number;
+  minSpend?: number;
+  endAt?: string;
+  collected?: boolean;
+};
 
 interface CartItem {
   product: {
@@ -17,7 +34,7 @@ interface CartItem {
     isStockAvailable: boolean;
     isWearable?: boolean;
     sizeStock?: { size: string; stock: number }[];
-    vendor?: { shopName?: string; name?: string };
+    vendor?: { _id?: string; shopName?: string; name?: string };
   };
   quantity: number;
   size?: string;
@@ -37,6 +54,8 @@ export default function CartPage() {
   const [ghnFee, setGhnFee] = useState<number | null>(null);
   const [feeLoading, setFeeLoading] = useState(false);
   const [feeError, setFeeError] = useState<string | null>(null);
+  const [vendorVoucherMap, setVendorVoucherMap] = useState<Record<string, VoucherSuggestion[]>>({});
+  const { collectVoucher, collectingId, collectedIds, message: voucherMsg } = useCollectVoucher();
   const feeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchCart = useCallback(async () => {
@@ -59,6 +78,60 @@ export default function CartPage() {
   useEffect(() => {
     fetchCart();
   }, [fetchCart]);
+
+  const vendorIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          cart
+            .map((item) => item.product.vendor?._id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ),
+    [cart],
+  );
+
+  const firstProductByVendor = useMemo(() => {
+    const seen = new Set<string>();
+    const map: Record<string, string> = {};
+    for (const item of cart) {
+      const vendorId = item.product.vendor?._id;
+      if (!vendorId || seen.has(vendorId)) continue;
+      seen.add(vendorId);
+      const key = item.size ? `${item.product._id}__${item.size}` : item.product._id;
+      map[key] = vendorId;
+    }
+    return map;
+  }, [cart]);
+
+  useEffect(() => {
+    let active = true;
+    if (vendorIds.length === 0) {
+      setVendorVoucherMap({});
+      return;
+    }
+
+    Promise.all(
+      vendorIds.map(async (vendorId) => {
+        try {
+          const res = await fetch(
+            `/api/vouchers?vendor=${vendorId}&limit=2&sort=bestValue`,
+          );
+          const data = await res.json();
+          return [vendorId, sortVouchers(data.vouchers ?? [])] as const;
+        } catch {
+          return [vendorId, []] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (!active) return;
+      setVendorVoucherMap(Object.fromEntries(entries));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [vendorIds]);
 
   // Load saved addresses, preselect the default one.
   useEffect(() => {
@@ -108,9 +181,11 @@ export default function CartPage() {
             feesByVendor: data.feesByVendor,
           }),
         );
-      } catch (e: any) {
+      } catch (error) {
         setGhnFee(null);
-        setFeeError(e?.message ?? "Lỗi tính phí vận chuyển");
+        setFeeError(
+          error instanceof Error ? error.message : "Lỗi tính phí vận chuyển",
+        );
       } finally {
         setFeeLoading(false);
       }
@@ -254,6 +329,10 @@ export default function CartPage() {
               const lineTotal = item.product.price * item.quantity;
               const isUpdating = updatingId === cartKey;
               const isDeleting = deletingId === cartKey;
+              const voucherVendorId = firstProductByVendor[cartKey];
+              const voucherSuggestions = voucherVendorId
+                ? (vendorVoucherMap[voucherVendorId] ?? [])
+                : [];
               // Stock tối đa theo size hoặc tổng
               const maxStock =
                 item.size && item.product.sizeStock
@@ -261,8 +340,9 @@ export default function CartPage() {
                   : (item.product.stock ?? 99);
 
               return (
+                <React.Fragment key={cartKey}>
                 <motion.div
-                  key={pid}
+                  key={`${cartKey}-item`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -60, scale: 0.95 }}
@@ -273,11 +353,13 @@ export default function CartPage() {
                 >
                   {/* Product Image */}
                   <Link href={`/product/${pid}`} className="shrink-0">
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-gray-900 border border-white/10">
-                      <img
+                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-gray-900 border border-white/10">
+                      <Image
                         src={item.product.image1}
                         alt={item.product.title}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                        fill
+                        sizes="(max-width: 640px) 80px, 96px"
+                        className="object-cover hover:scale-105 transition-transform duration-300"
                         draggable={false}
                       />
                     </div>
@@ -361,6 +443,53 @@ export default function CartPage() {
                     <FaTrash size={12} />
                   </button>
                 </motion.div>
+
+                {voucherSuggestions.length > 0 && (
+                  <motion.div
+                    key={`${cartKey}-vouchers`}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4"
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="flex items-center gap-2 text-sm font-bold text-blue-100">
+                        <FaTicketAlt size={13} className="text-blue-300" />
+                        Voucher của shop này
+                      </h3>
+                      {voucherMsg && (
+                        <span className="text-xs text-emerald-300">{voucherMsg}</span>
+                      )}
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {voucherSuggestions.map((voucher) => {
+                        const collected =
+                          voucher.collected || collectedIds.has(voucher._id);
+                        return (
+                          <VoucherCard
+                            key={voucher._id}
+                            voucher={voucher}
+                            accent="blue"
+                            collected={collected}
+                            actionLabel={
+                              collectingId === voucher._id
+                                ? "Đang lưu..."
+                                : collected
+                                  ? "Đã lưu"
+                                  : "Lưu"
+                            }
+                            onClick={() =>
+                              !collected &&
+                              collectingId !== voucher._id &&
+                              collectVoucher(voucher._id)
+                            }
+                          />
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+                </React.Fragment>
               );
             })}
           </AnimatePresence>

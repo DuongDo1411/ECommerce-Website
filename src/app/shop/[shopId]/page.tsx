@@ -7,6 +7,30 @@ import Navbar from "@/app/component/Navbar";
 import Footer from "@/app/component/Footer";
 import ShopDetailClient from "./ShopDetailClient";
 
+interface ShopProductReviewDoc {
+  rating?: number;
+}
+
+interface ShopProductDoc {
+  _id: unknown;
+  title?: string;
+  price?: number;
+  image1?: string;
+  image2?: string | null;
+  image3?: string | null;
+  image4?: string | null;
+  category?: string;
+  reviews?: ShopProductReviewDoc[];
+  isWearable?: boolean;
+  stock?: number;
+  isStockAvailable?: boolean;
+  freeDelivery?: boolean;
+  warranty?: string;
+  payOnDelivery?: boolean;
+  replacementDays?: number;
+  vendor?: unknown;
+}
+
 export default async function ShopDetailPage({
   params,
 }: {
@@ -39,13 +63,13 @@ export default async function ShopDetailPage({
       "_id title price image1 image2 image3 image4 category reviews isWearable stock isStockAvailable freeDelivery warranty payOnDelivery replacementDays vendor",
     )
     .populate({ path: "vendor", select: "name shopName" })
-    .lean();
+    .lean<ShopProductDoc[]>();
 
-  const productsWithRating = products.map((p: any) => {
+  const productsWithRating = products.map((p) => {
     const reviews = p.reviews ?? [];
     const avgRating =
       reviews.length > 0
-        ? reviews.reduce((s: number, r: any) => s + r.rating, 0) /
+        ? reviews.reduce((s, r) => s + (r.rating ?? 0), 0) /
           reviews.length
         : 0;
     return {

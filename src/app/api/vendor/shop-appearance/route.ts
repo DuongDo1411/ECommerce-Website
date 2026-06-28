@@ -1,16 +1,15 @@
-import { auth } from "@/auth";
 import uploadOnCloudinary from "@/lib/cloudinary";
 import connectDB from "@/lib/connectDB";
+import { requireRole } from "@/lib/rbac";
 import User from "@/model/user.model";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(req: NextRequest) {
   try {
     await connectDB();
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authz = await requireRole(["vendor"], { mode: "api" });
+    if (authz instanceof NextResponse) return authz;
+    const { session } = authz;
 
     const formData = await req.formData();
     const logoFile = formData.get("logo") as Blob | null;
@@ -38,7 +37,10 @@ export async function PATCH(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { image: user.image, shopBackground: (user as any).shopBackground },
+      {
+        image: user.image,
+        shopBackground: (user as { shopBackground?: string }).shopBackground,
+      },
       { status: 200 },
     );
   } catch (error) {

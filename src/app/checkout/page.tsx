@@ -1,7 +1,8 @@
 "use client";
 import { motion } from "motion/react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   FaArrowLeft,
   FaCheckCircle,
@@ -9,12 +10,32 @@ import {
   FaMapMarkerAlt,
   FaMoneyBillWave,
   FaShieldAlt,
+  FaTicketAlt,
   FaTruck,
 } from "react-icons/fa";
 import AddressPickerModal from "@/app/component/AddressPickerModal";
 import type { Address } from "@/app/component/AddressBook";
+import VoucherPicker, { VoucherSelection } from "@/app/component/VoucherPicker";
+import type { VoucherCandidate } from "@/lib/voucher/candidateTypes";
+import {
+  clearPreferredVoucher,
+  readPreferredVoucher,
+} from "@/lib/voucher/preferredVoucher";
 
 const SERVICE_CHARGE = 15_000;
+
+// Dịch lý do voucher bị từ chối (server trả mã tiếng Anh) sang tiếng Việt.
+const REJECT_REASON_LABEL: Record<string, string> = {
+  not_collected: "Voucher chưa được lưu",
+  expired: "Voucher đã hết hạn",
+  inactive: "Voucher ngừng hoạt động",
+  quota_exhausted: "Voucher đã hết lượt",
+  wrong_slot: "Sai loại voucher",
+  wrong_vendor: "Không áp dụng cho shop trong giỏ",
+  min_spend: "Chưa đạt giá trị tối thiểu",
+  not_applicable: "Không áp dụng cho sản phẩm trong giỏ",
+  duplicate_slot: "Trùng loại voucher",
+};
 
 interface CartProduct {
   _id: string;
@@ -36,6 +57,15 @@ interface VendorFee {
   serviceId: number;
   isFreeDelivery?: boolean;
 }
+interface QuoteState {
+  finalPayable: number;
+  totalShopDiscount: number;
+  platformDiscount: number;
+  freeshipDiscount: number;
+  shippingFeeTotal: number;
+  serviceCharge: number;
+  rejected: { code: string; reason: string }[];
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -53,6 +83,36 @@ export default function CheckoutPage() {
   const [payMethod, setPayMethod] = useState<PayMethod>("cod");
   const [placing, setPlacing] = useState(false);
   const [orderError, setOrderError] = useState("");
+  // Idempotency key cho cả lượt checkout này: giữ nguyên qua mọi lần submit để
+  // double-click / retry không tạo đơn trùng (server trả lại batch cũ).
+  const [checkoutRequestId] = useState(() => crypto.randomUUID());
+  const [voucherSelection, setVoucherSelection] = useState<VoucherSelection>({
+    shopVoucherCodes: [],
+    platformVoucherCode: "",
+    freeshipVoucherCode: "",
+  });
+  const [userTouchedVoucher, setUserTouchedVoucher] = useState(false);
+  const [quote, setQuote] = useState<QuoteState | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [candidates, setCandidates] = useState<VoucherCandidate[]>([]);
+  const [candidateContextKey, setCandidateContextKey] = useState("");
+
+  // Lưu voucher vào ví ngay tại checkout ("Lưu & chọn"). Trả true nếu đã có thể dùng.
+  const handleCollectVoucher = useCallback(async (voucherId: string) => {
+    try {
+      const res = await fetch("/api/user/vouchers/collect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voucherId }),
+      });
+      if (res.ok) return true;
+      const data = await res.json().catch(() => ({}));
+      // Đã nằm trong ví ở trạng thái collected -> vẫn dùng được.
+      return res.status === 409 && data?.status === "collected";
+    } catch {
+      return false;
+    }
+  }, []);
 
   const fetchCart = useCallback(async () => {
     setLoading(true);
@@ -138,8 +198,17 @@ export default function CheckoutPage() {
 
   const subtotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const grandTotal = subtotal + (shipFee ?? 0) + SERVICE_CHARGE;
+  const voucherDiscount =
+    (quote?.totalShopDiscount ?? 0) +
+    (quote?.platformDiscount ?? 0) +
+    (quote?.freeshipDiscount ?? 0);
+  const payableTotal = quote?.finalPayable ?? grandTotal;
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
   const codAllowed = cart.every((i) => i.product.payOnDelivery === true);
+  const selectedVoucherCount =
+    voucherSelection.shopVoucherCodes.length +
+    (voucherSelection.platformVoucherCode ? 1 : 0) +
+    (voucherSelection.freeshipVoucherCode ? 1 : 0);
 
   // Helper: tra cứu vendor nào được miễn phí ship
   const freeVendorIds = new Set(
@@ -153,32 +222,140 @@ export default function CheckoutPage() {
     computeFee(a._id, cart);
   };
 
+  const quoteContextKey =
+    selectedAddress && cart.length > 0
+      ? `${selectedAddress._id}:${cart
+          .map((item) => `${item.product._id}:${item.quantity}:${item.size ?? ""}`)
+          .join("|")}`
+      : "";
+
+  // Quote + auto-gợi ý voucher gộp 1 effect: tổng tiền luôn khớp selection ngay
+  // từ lần đầu (tránh khoảng stale), không spam request lặp vô hạn.
+  useEffect(() => {
+    if (!selectedAddress || cart.length === 0) {
+      setQuote(null);
+      setCandidates([]);
+      setCandidateContextKey("");
+      return;
+    }
+
+    const controller = new AbortController();
+    const items = cart.map((item) => ({
+      productId: item.product._id,
+      quantity: item.quantity,
+      size: item.size,
+    }));
+    const hasSelection =
+      voucherSelection.shopVoucherCodes.length > 0 ||
+      Boolean(voucherSelection.platformVoucherCode) ||
+      Boolean(voucherSelection.freeshipVoucherCode);
+    const wantRecommend = !userTouchedVoucher && !hasSelection;
+
+    setQuoteLoading(true);
+    setCandidateContextKey("");
+    fetch("/api/voucher/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        addressId: selectedAddress._id,
+        items,
+        includeCandidates: true,
+        ...(wantRecommend ? { recommend: true } : voucherSelection),
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.quote) {
+          setQuote(data.quote);
+          setShipFee(data.quote.shippingFeeTotal);
+        }
+        setCandidates(data.candidates ?? []);
+        setCandidateContextKey(quoteContextKey);
+        if (wantRecommend && data.recommended) {
+          const next = {
+            shopVoucherCodes: data.recommended.shopVoucherCodes ?? [],
+            platformVoucherCode: data.recommended.platformVoucherCode ?? "",
+            freeshipVoucherCode: data.recommended.freeshipVoucherCode ?? "",
+          };
+          const changed =
+            next.shopVoucherCodes.join(",") !==
+              voucherSelection.shopVoucherCodes.join(",") ||
+            next.platformVoucherCode !== voucherSelection.platformVoucherCode ||
+            next.freeshipVoucherCode !== voucherSelection.freeshipVoucherCode;
+          if (changed) setVoucherSelection(next);
+        }
+      })
+      .catch((error) => {
+        if (error?.name !== "AbortError") {
+          setQuote(null);
+          setCandidates([]);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setQuoteLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [cart, quoteContextKey, selectedAddress, voucherSelection, userTouchedVoucher]);
+
+  useEffect(() => {
+    if (!loading && cart.length === 0) {
+      router.push("/cart");
+    }
+  }, [cart.length, loading, router]);
+
+  // "Dùng ngay" từ hub: đọc preference MỘT lần sau khi có candidates. Nếu voucher
+  // còn dùng được thì tự chọn đúng slot; nếu không thì xóa preference + báo ngắn.
+  const preferenceHandledRef = useRef(false);
+  useEffect(() => {
+    if (
+      preferenceHandledRef.current ||
+      !quoteContextKey ||
+      candidateContextKey !== quoteContextKey
+    ) {
+      return;
+    }
+
+    const pref = readPreferredVoucher();
+    if (!pref?.code) return;
+
+    preferenceHandledRef.current = true;
+    clearPreferredVoucher();
+
+    const candidate = candidates.find(
+      (c) => c.code === pref.code && (!pref.slot || c.slot === pref.slot),
+    );
+    if (candidate && candidate.eligible && candidate.collected) {
+      setUserTouchedVoucher(true);
+      setVoucherSelection((prev) => {
+        if (candidate.slot === "shop") {
+          const kept = prev.shopVoucherCodes.filter((code) => {
+            const match = candidates.find((c) => c.code === code);
+            return match?.vendorId !== candidate.vendorId;
+          });
+          return { ...prev, shopVoucherCodes: [...kept, candidate.code] };
+        }
+        if (candidate.slot === "platform") {
+          return { ...prev, platformVoucherCode: candidate.code };
+        }
+        return { ...prev, freeshipVoucherCode: candidate.code };
+      });
+    } else {
+      setOrderError("Voucher chưa áp dụng được cho giỏ hàng hiện tại");
+    }
+  }, [candidateContextKey, candidates, quoteContextKey]);
+
   const handlePlaceOrder = async () => {
     if (!selectedAddress) return;
     setPlacing(true);
     setOrderError("");
 
-    // Build per-item fee breakdown (same logic for both COD and VNPay)
-    const feeUsed = new Set<string>();
-    const serviceUsed = new Set<string>();
-    const itemsWithFees = cart.map((item) => {
-      const vendorId = item.product.vendor?._id ?? "";
-      const vendorFee = feesByVendor.find((f) => f.vendorId === vendorId);
-      const itemDelivery =
-        vendorFee && !feeUsed.has(vendorId) ? vendorFee.fee : 0;
-      if (itemDelivery) feeUsed.add(vendorId);
-      const itemService = serviceUsed.size === 0 ? SERVICE_CHARGE : 0;
-      if (itemService) serviceUsed.add("done");
-      return {
-        productId: item.product._id,
-        quantity: item.quantity,
-        size: item.size,
-        serviceId: vendorFee?.serviceId,
-        deliveryCharge: itemDelivery,
-        serviceCharge: itemService,
-        amount: item.product.price * item.quantity + itemDelivery + itemService,
-      };
-    });
+    const items = cart.map((item) => ({
+      productId: item.product._id,
+      quantity: item.quantity,
+      size: item.size,
+    }));
 
     try {
       if (payMethod === "vnpay") {
@@ -186,9 +363,11 @@ export default function CheckoutPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            items: itemsWithFees,
+            items,
             addressId: selectedAddress._id,
-            totalAmount: grandTotal,
+            clientTotal: payableTotal,
+            checkoutRequestId,
+            ...voucherSelection,
           }),
         });
         if (!res.ok) {
@@ -201,26 +380,20 @@ export default function CheckoutPage() {
         return;
       }
 
-      // COD flow
-      for (const item of itemsWithFees) {
-        const res = await fetch("/api/orders/cod", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            productId: item.productId,
-            quantity: item.quantity,
-            addressId: selectedAddress._id,
-            serviceId: item.serviceId,
-            amount: item.amount,
-            deliveryCharge: item.deliveryCharge,
-            serviceCharge: item.serviceCharge,
-            ...(item.size ? { size: item.size } : {}),
-          }),
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.message ?? "Có lỗi xảy ra khi đặt hàng");
-        }
+      const res = await fetch("/api/orders/cod", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items,
+          addressId: selectedAddress._id,
+          clientTotal: payableTotal,
+          checkoutRequestId,
+          ...voucherSelection,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message ?? "Có lỗi xảy ra khi đặt hàng");
       }
       sessionStorage.removeItem("ghnCheckout");
       router.push("/orders");
@@ -246,7 +419,6 @@ export default function CheckoutPage() {
   }
 
   if (cart.length === 0) {
-    router.push("/cart");
     return null;
   }
 
@@ -323,6 +495,51 @@ export default function CheckoutPage() {
             )}
           </motion.div>
 
+          {/* Vouchers */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 }}
+            className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 shadow-lg shadow-emerald-950/20"
+          >
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-xs font-bold shrink-0">
+                  2
+                </span>
+                <FaTicketAlt className="text-emerald-300" size={14} />
+                Ưu đãi & Voucher
+              </h2>
+              <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                {selectedVoucherCount > 0
+                  ? `${selectedVoucherCount} mã đang chọn`
+                  : "Chưa chọn mã"}
+              </span>
+            </div>
+            <VoucherPicker
+              selection={voucherSelection}
+              candidates={candidates}
+              loading={quoteLoading}
+              onCollect={handleCollectVoucher}
+              onChange={(sel) => {
+                setUserTouchedVoucher(true);
+                setVoucherSelection(sel);
+              }}
+            />
+            {quoteLoading && (
+              <p className="mt-3 text-xs text-gray-400">Đang kiểm tra voucher...</p>
+            )}
+            {quote?.rejected?.length ? (
+              <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                {quote.rejected.map((item) => (
+                  <p key={`${item.code}-${item.reason}`}>
+                    {item.code}: {REJECT_REASON_LABEL[item.reason] ?? item.reason}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </motion.div>
+
           {/* Payment method */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -332,7 +549,7 @@ export default function CheckoutPage() {
           >
             <h2 className="text-base font-bold mb-5 flex items-center gap-2">
               <span className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
-                2
+                3
               </span>
               <FaCreditCard className="text-blue-400" size={14} />
               Phương thức thanh toán
@@ -449,11 +666,13 @@ export default function CheckoutPage() {
                     key={`${item.product._id}-${item.size ?? ""}`}
                     className="flex items-center gap-3"
                   >
-                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-900 border border-white/10 shrink-0">
-                      <img
+                    <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-gray-900 border border-white/10 shrink-0">
+                      <Image
                         src={item.product.image1}
                         alt={item.product.title}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="56px"
+                        className="object-cover"
                         draggable={false}
                       />
                     </div>
@@ -541,12 +760,21 @@ export default function CheckoutPage() {
               </span>
             </div>
 
+            {voucherDiscount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-emerald-300">Giảm giá</span>
+                <span className="font-semibold text-emerald-300">
+                  -{voucherDiscount.toLocaleString("vi-VN")}₫
+                </span>
+              </div>
+            )}
+
             <div className="h-px bg-white/10" />
 
             <div className="flex justify-between items-center">
               <span className="font-bold text-white">Tổng cộng</span>
               <span className="text-xl font-black text-blue-400">
-                {grandTotal.toLocaleString("vi-VN")}₫
+                {payableTotal.toLocaleString("vi-VN")}₫
               </span>
             </div>
 
@@ -573,10 +801,10 @@ export default function CheckoutPage() {
             <motion.button
               whileTap={{ scale: 0.97 }}
               whileHover={{ scale: 1.02 }}
-              disabled={placing || !selectedAddress || feeLoading || shipFee === null}
+              disabled={placing || !selectedAddress || feeLoading || quoteLoading || shipFee === null || (quote?.rejected?.length ?? 0) > 0}
               onClick={handlePlaceOrder}
               className={`w-full py-3.5 rounded-2xl font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 ${
-                placing || !selectedAddress || feeLoading || shipFee === null
+                placing || !selectedAddress || feeLoading || quoteLoading || shipFee === null || (quote?.rejected?.length ?? 0) > 0
                   ? "bg-gray-800 text-gray-500 cursor-not-allowed"
                   : payMethod === "vnpay"
                     ? "bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white shadow-lg hover:shadow-red-500/40"

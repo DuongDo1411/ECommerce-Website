@@ -21,6 +21,7 @@ import {
   AiOutlineLogout,
   AiOutlineMessage,
 } from "react-icons/ai";
+import { FaTicketAlt } from "react-icons/fa";
 import { GoListUnordered } from 'react-icons/go'
 import { signOut } from 'next-auth/react'
 import { useSelector } from 'react-redux'
@@ -28,13 +29,16 @@ import { IconType } from 'react-icons'
 
 type AppRouter = ReturnType<typeof useRouter>;
 
-function Navbar({user}: {user: IUser}) {
+function Navbar({user}: {user: IUser | null}) {
     const router = useRouter();
     const [openMenu, setOpenMenu] = useState(false);
     const [sideBarOpen, setSideBarOpen] = useState(false);
     const { cartCount } = useCart();
     const totalUnread = useSelector((state: RootState) => state.chat.totalUnread);
-    const showMessageBadge = user?.role === "user" && totalUnread > 0;
+    const isLoggedIn = !!user;
+    const isShopper =
+        isLoggedIn && user?.role !== "vendor" && user?.role !== "admin";
+    const showMessageBadge = isShopper && totalUnread > 0;
   return (
     <div className='fixed top-0 left-0 w-full bg-linear-to-r from-black via-black to-gray-900 text-white z-50 shadow-lg border-b border-blue-500/20'>
         <div className='max-w-7xl mx-auto px-6 py-4 flex justify-between items-center'>
@@ -49,17 +53,18 @@ function Navbar({user}: {user: IUser}) {
                 <span className='text-xl font-bold hidden sm:inline bg-linear-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent'>MultiCart</span>
             </motion.div>
             
-            {user.role == 'user' && <div className='hidden md:flex gap-8'>
+            {isShopper && <div className='hidden md:flex gap-8'>
                     <NavItem label="Home" path="/" router={router} />
                     <NavItem label="Categories" path="/category" router={router} />
                     <NavItem label="Shop" path="/shop" router={router} />
+                    <NavItem label="Mã giảm giá" path="/vouchers" router={router} />
                     <NavItem label="Orders" path="/orders" router={router} />
             </div>}
             
             {/* desktop icons */}
             <div className='hidden md:flex items-center gap-6'>
-                {user?.role == 'user' && <IconBtn Icon={AiOutlineSearch} onclick={()=>router.push("/category")}/>}
-                <IconBtn Icon={AiOutlinePhone} onclick={()=>router.push("/support")}/>
+                {isShopper && <IconBtn Icon={AiOutlineSearch} onclick={()=>router.push("/category")}/>}
+                {isLoggedIn && <IconBtn Icon={AiOutlinePhone} onclick={()=>router.push("/support")}/>}
                 
                 <div className='relative'>
                     {user?.image ? (
@@ -94,8 +99,8 @@ function Navbar({user}: {user: IUser}) {
                             border border-blue-500/30 bg-linear-to-br from-gray-900/80 to-black/80
                             overflow-hidden'
                             >
-                                <DropDownBtn Icon={AiOutlineUser} label="Profile" onClick={()=>{router.push('/profile');setOpenMenu(false)}} />
-                                {user?.role === "user" && (
+                                {isLoggedIn && <DropDownBtn Icon={AiOutlineUser} label="Profile" onClick={()=>{router.push('/profile');setOpenMenu(false)}} />}
+                                {isShopper && (
                                     <DropDownBtn
                                     Icon={AiOutlineMessage}
                                     label="Messages"
@@ -104,18 +109,37 @@ function Navbar({user}: {user: IUser}) {
                                     />
                                 )}
                                 <DropDownBtn Icon={AiOutlineLogin} label="SignIn" onClick={()=>{router.push('/login');setOpenMenu(false)}} />
-                                <DropDownBtn Icon={AiOutlineLogout} label="SignOut" onClick={()=>{signOut();setOpenMenu(false)}} />
+                                {isLoggedIn && <DropDownBtn Icon={AiOutlineLogout} label="SignOut" onClick={()=>{signOut();setOpenMenu(false)}} />}
                             </motion.div>
                         )}
                     </AnimatePresence>
                 </div>
                 
-                {user?.role == "user" && <CartBtn router={router} count={cartCount}/> }
+                {isShopper && <CartBtn router={router} count={cartCount}/> }
             </div>
 
             {/* mobile icons */}
             <div className='md:hidden flex items-center gap-4'>
-                {user?.role == "vendor" || user?.role == "admin" ? (
+                {!isLoggedIn ? (
+                    <div className='relative'>
+                        <IconBtn Icon={AiOutlineUser} onClick={()=> setOpenMenu(!openMenu)} />
+                        <AnimatePresence>
+                            {openMenu && (
+                                <motion.div
+                                initial={{ opacity: 0, y: -15, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -15, scale: 0.95 }}
+                                transition={{ duration: 0.3, ease: "easeOut" }}
+                                className='absolute right-0 mt-3 w-48 backdrop-blur-xl rounded-xl shadow-xl
+                                border border-blue-500/30 bg-linear-to-br from-gray-900/80 to-black/80
+                                overflow-hidden'
+                                >
+                                    <DropDownBtn Icon={AiOutlineLogin} label="SignIn" onClick={()=>{router.push('/login');setOpenMenu(false)}} />
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                ) : user?.role == "vendor" || user?.role == "admin" ? (
                     <>
                         <IconBtn Icon={AiOutlinePhone} onclick={()=>router.push("/support")}/>
                         <div className='relative'>
@@ -190,6 +214,7 @@ function Navbar({user}: {user: IUser}) {
                                         <SidebarBtn label="Home" path="/" router={router} Icon={AiOutlineHome} setSideBarOpen={setSideBarOpen}/>
                                         <SidebarBtn label="Categories" path="/category" router={router} Icon={AiOutlineAppstore} setSideBarOpen={setSideBarOpen}/>
                                         <SidebarBtn label="Shops" path="/shop" router={router} Icon={AiOutlineShop} setSideBarOpen={setSideBarOpen}/>
+                                        <SidebarBtn label="Mã giảm giá" path="/vouchers" router={router} Icon={FaTicketAlt} setSideBarOpen={setSideBarOpen}/>
                                         <SidebarBtn label="Orders" path="/orders" router={router} Icon={GoListUnordered} setSideBarOpen={setSideBarOpen}/>
                                         <SidebarBtn
                                         label="Messages"
@@ -276,7 +301,7 @@ const AvatarIconButton = ({ onClick, unreadCount }: { onClick: () => void; unrea
     <motion.button
     whileHover={{scale: 1.15, color: '#60a5fa'}}
     whileTap={{scale: 0.9}}
-    onClick={onClick ?? onclick}
+    onClick={onClick}
     className='relative transition-colors hover:text-blue-400'
     >
         <AiOutlineUser size={24}/>

@@ -1,6 +1,7 @@
 "use client";
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
+import Image from "next/image";
 import {
   FaStar,
   FaStore,
@@ -11,6 +12,11 @@ import {
 import { AiOutlineShop } from "react-icons/ai";
 import ProductCard from "@/app/component/ProductCard";
 import ChatButton from "@/app/component/Chat/ChatButton";
+import VoucherCard from "@/app/component/VoucherCard";
+import { sortVouchers } from "@/app/component/Voucher/sortVouchers";
+import { useCollectVoucher } from "@/app/component/Voucher/useCollectVoucher";
+import { ProductVendorLike, ProductReviewLike, PublicVoucher } from "@/lib/productView";
+import { IProduct } from "@/model/product.model";
 
 /* ─── Types ─── */
 interface Product {
@@ -29,8 +35,8 @@ interface Product {
   warranty: string;
   payOnDelivery?: boolean;
   replacementDays?: number;
-  reviews?: { rating: number; [key: string]: any }[];
-  vendor?: any;
+  reviews?: ProductReviewLike[];
+  vendor?: ProductVendorLike;
   reviewCount: number;
   avgRating: number;
 }
@@ -81,6 +87,8 @@ export default function ShopDetailClient({
   currentUserId: string;
 }) {
   const shopName = vendor.shopName || vendor.name;
+  const [vouchers, setVouchers] = useState<PublicVoucher[]>([]);
+  const { collectVoucher, collectingId, collectedIds, message: voucherMsg } = useCollectVoucher();
 
   // Product filters
   const [search, setSearch] = useState("");
@@ -94,6 +102,15 @@ export default function ShopDetailClient({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setSearch(val), 300);
   };
+
+  useEffect(() => {
+    fetch(`/api/vouchers?vendor=${vendor._id}&limit=4&sort=bestValue`)
+      .then((res) => res.json())
+      .then((data) => setVouchers(data.vouchers ?? []))
+      .catch(() => setVouchers([]));
+  }, [vendor._id]);
+
+  const sortedVouchers = useMemo(() => sortVouchers(vouchers), [vouchers]);
 
   const filteredProducts = useMemo(() => {
     let result = [...initialProducts];
@@ -192,13 +209,15 @@ export default function ShopDetailClient({
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="w-28 h-28 rounded-full overflow-hidden border-4 border-blue-500/40 bg-gray-800 flex items-center justify-center shadow-xl shadow-blue-500/20 shrink-0"
+            className="relative w-28 h-28 rounded-full overflow-hidden border-4 border-blue-500/40 bg-gray-800 flex items-center justify-center shadow-xl shadow-blue-500/20 shrink-0"
           >
             {vendor.image ? (
-              <img
+              <Image
                 src={vendor.image}
                 alt={shopName}
-                className="w-full h-full object-cover"
+                fill
+                sizes="112px"
+                className="object-cover"
               />
             ) : (
               <FaStore size={48} className="text-blue-400 opacity-60" />
@@ -229,6 +248,41 @@ export default function ShopDetailClient({
           </motion.div>
         </div>
       </section>
+
+      {sortedVouchers.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 pt-8">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-white">Voucher của shop</h2>
+              {voucherMsg && <span className="text-xs text-emerald-300">{voucherMsg}</span>}
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {sortedVouchers.slice(0, 4).map((voucher) => {
+                const collected = voucher.collected || collectedIds.has(voucher._id);
+                return (
+                  <VoucherCard
+                    key={voucher._id}
+                    voucher={voucher}
+                    collected={collected}
+                    actionLabel={
+                      collectingId === voucher._id
+                        ? "Đang lưu..."
+                        : collected
+                          ? "Đã lưu"
+                          : "Lưu"
+                    }
+                    onClick={() =>
+                      !collected &&
+                      collectingId !== voucher._id &&
+                      collectVoucher(voucher._id)
+                    }
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ═══ Products Section ═══ */}
       <section className="max-w-7xl mx-auto px-4 py-10">
@@ -295,7 +349,7 @@ export default function ShopDetailClient({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04, duration: 0.35 }}
               >
-                <ProductCard product={p as any} />
+                <ProductCard product={p as unknown as IProduct} />
               </motion.div>
             ))}
           </div>
@@ -475,12 +529,14 @@ export default function ShopDetailClient({
                   className="flex gap-3 border-b border-white/5 pb-5 last:border-0 last:pb-0"
                 >
                   {/* Avatar */}
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-sm font-bold shrink-0 border border-white/10">
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-sm font-bold shrink-0 border border-white/10">
                     {review.user?.image ? (
-                      <img
+                      <Image
                         src={review.user.image}
                         alt="avatar"
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="40px"
+                        className="object-cover"
                       />
                     ) : (
                       <span>{(review.user?.name || "K")[0].toUpperCase()}</span>

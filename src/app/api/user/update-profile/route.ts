@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const name = formData.get("name") as string;
     const phone = formData.get("phone") as string;
+    const gender = formData.get("gender") as string | null;
     const file = formData.get("image") as File | null;
 
     if (!name || !phone) {
@@ -39,21 +40,34 @@ export async function POST(req: NextRequest) {
       imageUrl = await uploadOnCloudinary(file);
     }
 
+    const $set: Record<string, string | undefined> = {
+      name,
+      phone,
+    };
+    if (gender === "male" || gender === "female") {
+      $set.gender = gender;
+    }
+    if (imageUrl) {
+      $set.image = imageUrl;
+    }
+
     const updatedUser = await User.findOneAndUpdate(
       { email: session.user.email },
       {
-        $set: {
-          name,
-          phone,
-          image: imageUrl,
-        },
+        $set,
       },
       { new: true },
     );
     if (!updatedUser) {
       return NextResponse.json({ message: "User not found" }, { status: 400 });
     }
-    return NextResponse.json(updatedUser, { status: 200 });
+
+    const userObject = updatedUser.toObject();
+    const { password, ...safeUser } = userObject;
+    return NextResponse.json(
+      { ...safeUser, hasPassword: !!password },
+      { status: 200 },
+    );
   } catch (error) {
     return NextResponse.json(
       {

@@ -1,5 +1,6 @@
 "use client";
 import { RootState } from "@/redux/store";
+import { IProduct } from "@/model/product.model";
 import React from "react";
 import { useSelector } from "react-redux";
 import ProductCard from "../ProductCard";
@@ -14,7 +15,8 @@ function ProductCardPage() {
 
   const products = Array.isArray(allProductsData)
     ? allProductsData.filter(
-        (p: any) => p.isActive === true && p.verificationStatus === "approved",
+        (p: IProduct) =>
+          p.isActive === true && p.verificationStatus === "approved",
       )
     : [];
 
@@ -61,9 +63,9 @@ function ProductCardPage() {
           </motion.div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {products.map((p: any, index: number) => (
+            {products.map((p: IProduct, index: number) => (
               <motion.div
-                key={p._id}
+                key={p._id?.toString()}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}

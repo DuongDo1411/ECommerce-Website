@@ -1,4 +1,3 @@
-import { timeStamp } from "console";
 import mongoose from "mongoose";
 
 export interface IUser {
@@ -8,6 +7,8 @@ export interface IUser {
   email?: string;
   phone?: string;
   image?: string;
+  gender?: "male" | "female";
+  hasPassword?: boolean;
   role: "user" | "vendor" | "admin";
 
   // delivery addresses (GHN-structured)
@@ -47,7 +48,7 @@ export interface IUser {
   rejectedReason?: string;
 
   vendorProducts?: mongoose.Types.ObjectId[];
-  orders?: mongoose.Types.ObjectId;
+  orders?: mongoose.Types.ObjectId[];
 
   vendorReviews?: {
     _id?: mongoose.Types.ObjectId;
@@ -86,6 +87,10 @@ const userSchema = new mongoose.Schema<IUser>(
     },
     phone: {
       type: String,
+    },
+    gender: {
+      type: String,
+      enum: ["male", "female"],
     },
     role: {
       type: String,

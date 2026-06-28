@@ -1,6 +1,7 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import Image from "next/image";
 import {
   FaStar,
   FaStore,
@@ -12,6 +13,12 @@ import {
 import { AiOutlineShop } from "react-icons/ai";
 import ProductCard from "@/app/component/ProductCard";
 import { IUser } from "@/model/user.model";
+import { IProduct } from "@/model/product.model";
+import {
+  ProductReviewLike,
+  ProductVendorLike,
+  toId,
+} from "@/lib/productView";
 
 interface Product {
   _id: string;
@@ -29,8 +36,8 @@ interface Product {
   warranty: string;
   payOnDelivery?: boolean;
   replacementDays?: number;
-  reviews?: { rating: number; [key: string]: any }[];
-  vendor?: any;
+  reviews?: ProductReviewLike[];
+  vendor?: ProductVendorLike;
   reviewCount: number;
   avgRating: number;
 }
@@ -61,7 +68,7 @@ function StarRow({ rating, size = 14 }: { rating: number; size?: number }) {
 }
 
 export default function VendorShopView({ user }: { user: IUser }) {
-  const vendorId = (user._id as any)?.toString?.() ?? String(user._id);
+  const vendorId = toId(user._id);
   const shopName = user.shopName || user.name || "My Shop";
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -272,9 +279,16 @@ export default function VendorShopView({ user }: { user: IUser }) {
         <div className="relative z-10 max-w-7xl mx-auto px-4 py-12 flex flex-col sm:flex-row items-center gap-8">
           {/* Logo with edit overlay */}
           <div className="relative shrink-0 group">
-            <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-emerald-500/50 bg-gray-800 flex items-center justify-center shadow-xl shadow-emerald-500/20">
+            <div className="relative w-28 h-28 rounded-full overflow-hidden border-4 border-emerald-500/50 bg-gray-800 flex items-center justify-center shadow-xl shadow-emerald-500/20">
               {localLogo ? (
-                <img src={localLogo} alt={shopName} className="w-full h-full object-cover" />
+                <Image
+                  src={localLogo}
+                  alt={shopName}
+                  fill
+                  sizes="112px"
+                  className="object-cover"
+                  unoptimized={localLogo.startsWith("blob:")}
+                />
               ) : (
                 <FaStore size={48} className="text-emerald-400 opacity-60" />
               )}
@@ -312,7 +326,7 @@ export default function VendorShopView({ user }: { user: IUser }) {
               )}
             </div>
             <p className="mt-3 text-xs text-emerald-400/70 italic">
-              Chạm vào logo để đổi ảnh • Nhấn "Đổi ảnh nền" để thay background
+              Chạm vào logo để đổi ảnh • Nhấn &ldquo;Đổi ảnh nền&rdquo; để thay background
             </p>
           </div>
         </div>
@@ -383,7 +397,7 @@ export default function VendorShopView({ user }: { user: IUser }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04, duration: 0.35 }}
               >
-                <ProductCard product={p as any} vendorPreview />
+                <ProductCard product={p as unknown as IProduct} vendorPreview />
               </motion.div>
             ))}
           </div>
@@ -467,9 +481,15 @@ export default function VendorShopView({ user }: { user: IUser }) {
                   transition={{ delay: i * 0.04 }}
                   className="flex gap-3 border-b border-white/5 pb-5 last:border-0 last:pb-0"
                 >
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-sm font-bold shrink-0 border border-white/10">
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-sm font-bold shrink-0 border border-white/10">
                     {review.user?.image ? (
-                      <img src={review.user.image} alt="avatar" className="w-full h-full object-cover" />
+                      <Image
+                        src={review.user.image}
+                        alt="avatar"
+                        fill
+                        sizes="40px"
+                        className="object-cover"
+                      />
                     ) : (
                       <span>{(review.user?.name || "K")[0].toUpperCase()}</span>
                     )}

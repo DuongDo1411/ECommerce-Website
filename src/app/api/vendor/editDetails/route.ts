@@ -1,5 +1,5 @@
-import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
+import { requireRole } from "@/lib/rbac";
 import User from "@/model/user.model";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -7,10 +7,9 @@ export async function POST(req: NextRequest) {
     try{
         await connectDB();
         const {shopName, shopAddress, shopAddressDetail, taxNumber} = await req.json();
-        const session = await auth();
-        if(!session?.user?.email){
-            return NextResponse.json({message: "Anauthorized access"}, {status: 401});
-        }
+        const authz = await requireRole(["vendor"], { mode: "api" });
+        if (authz instanceof NextResponse) return authz;
+        const { session } = authz;
         // GHN requires structured pickup address (district id + ward code).
         if(!shopAddressDetail?.districtId || !shopAddressDetail?.wardCode){
             return NextResponse.json(

@@ -18,20 +18,44 @@ export default function AddressPickerModal({
   onClose,
   onPick,
 }: Props) {
+  if (!open) return null;
+
+  return (
+    <AddressPickerPanel
+      selectedId={selectedId}
+      onClose={onClose}
+      onPick={onPick}
+    />
+  );
+}
+
+function AddressPickerPanel({
+  selectedId,
+  onClose,
+  onPick,
+}: Omit<Props, "open">) {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // This panel unmounts when the modal closes, so every open starts with
+  // loading=true without setting state synchronously inside the effect.
   useEffect(() => {
-    if (!open) return;
-    setLoading(true);
+    let cancelled = false;
     axios
       .get("/api/user/addresses")
-      .then((r) => setAddresses(r.data.addresses ?? []))
-      .catch(() => setAddresses([]))
-      .finally(() => setLoading(false));
-  }, [open]);
-
-  if (!open) return null;
+      .then((r) => {
+        if (!cancelled) setAddresses(r.data.addresses ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setAddresses([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">

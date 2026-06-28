@@ -3,6 +3,30 @@ import User from "@/model/user.model";
 import Product from "@/model/product.model";
 import { NextRequest, NextResponse } from "next/server";
 
+interface ShopReviewLean {
+  rating: number;
+}
+
+interface ShopLeanProduct {
+  _id: unknown;
+  title: string;
+  price: number;
+  image1?: string;
+  image2?: string;
+  image3?: string;
+  image4?: string;
+  category?: string;
+  isWearable?: boolean;
+  stock?: number;
+  isStockAvailable?: boolean;
+  freeDelivery?: boolean;
+  warranty?: string;
+  payOnDelivery?: boolean;
+  replacementDays?: number;
+  vendor?: unknown;
+  reviews?: ShopReviewLean[];
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ shopId: string }> },
@@ -31,7 +55,7 @@ export async function GET(
       req.nextUrl.searchParams,
     );
 
-    let query: any = {
+    const query = {
       vendor: shopId,
       verificationStatus: "approved",
       isActive: true,
@@ -42,12 +66,12 @@ export async function GET(
         "_id title price image1 image2 image3 image4 category reviews isWearable stock isStockAvailable freeDelivery warranty payOnDelivery replacementDays vendor",
       )
       .populate({ path: "vendor", select: "name shopName" })
-      .lean();
+      .lean<ShopLeanProduct[]>();
 
     // Filter by search
     if (search?.trim()) {
       const q = search.trim().toLowerCase();
-      products = products.filter((p: any) =>
+      products = products.filter((p) =>
         p.title.toLowerCase().includes(q),
       );
     }
@@ -55,11 +79,11 @@ export async function GET(
     // Filter by minRating
     if (minRating) {
       const min = Number(minRating);
-      products = products.filter((p: any) => {
+      products = products.filter((p) => {
         const reviews = p.reviews ?? [];
         if (reviews.length === 0) return false;
         const avg =
-          reviews.reduce((s: number, r: any) => s + r.rating, 0) /
+          reviews.reduce((s, r) => s + r.rating, 0) /
           reviews.length;
         return avg >= min;
       });
@@ -67,17 +91,17 @@ export async function GET(
 
     // Sort by price
     if (sort === "asc") {
-      products.sort((a: any, b: any) => a.price - b.price);
+      products.sort((a, b) => a.price - b.price);
     } else if (sort === "desc") {
-      products.sort((a: any, b: any) => b.price - a.price);
+      products.sort((a, b) => b.price - a.price);
     }
 
     // Compute avgRating per product for the response
-    const productsWithRating = products.map((p: any) => {
+    const productsWithRating = products.map((p) => {
       const reviews = p.reviews ?? [];
       const avgRating =
         reviews.length > 0
-          ? reviews.reduce((s: number, r: any) => s + r.rating, 0) /
+          ? reviews.reduce((s, r) => s + r.rating, 0) /
             reviews.length
           : 0;
       return {

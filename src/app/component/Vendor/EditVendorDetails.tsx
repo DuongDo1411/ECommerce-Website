@@ -15,6 +15,21 @@ interface GhnOption {
   name: string;
 }
 
+interface GhnProvince {
+  ProvinceID: number;
+  ProvinceName: string;
+}
+
+interface GhnDistrict {
+  DistrictID: number;
+  DistrictName: string;
+}
+
+interface GhnWard {
+  WardCode: string | number;
+  WardName: string;
+}
+
 function EditVendorDetails() {
   const [shopName, setShopName] = useState("");
   const [taxNumber, setTaxNumber] = useState("");
@@ -39,7 +54,7 @@ function EditVendorDetails() {
       .get("/api/ghn/provinces")
       .then((r) =>
         setProvinces(
-          r.data.provinces.map((p: any) => ({
+          r.data.provinces.map((p: GhnProvince) => ({
             id: p.ProvinceID,
             name: p.ProvinceName,
           })),
@@ -63,7 +78,7 @@ function EditVendorDetails() {
     if (!id) return;
     const r = await axios.get(`/api/ghn/districts?provinceId=${id}`);
     setDistricts(
-      r.data.districts.map((d: any) => ({
+      r.data.districts.map((d: GhnDistrict) => ({
         id: d.DistrictID,
         name: d.DistrictName,
       })),
@@ -82,7 +97,7 @@ function EditVendorDetails() {
     if (!id) return;
     const r = await axios.get(`/api/ghn/wards?districtId=${id}`);
     setWards(
-      r.data.wards.map((w: any) => ({
+      r.data.wards.map((w: GhnWard) => ({
         id: String(w.WardCode),
         name: w.WardName,
       })),
@@ -122,9 +137,13 @@ function EditVendorDetails() {
       alert("Vendor Shop Details added Successfully");
       setLoading(false);
       router.push("/");
-    } catch (error: any) {
+    } catch (error) {
       setLoading(false);
-      alert(error?.response?.data?.message ?? "Lỗi cập nhật thông tin shop");
+      const fallback = "Lỗi cập nhật thông tin shop";
+      const message = axios.isAxiosError<{ message?: string }>(error)
+        ? (error.response?.data?.message ?? fallback)
+        : fallback;
+      alert(message);
     }
   };
 

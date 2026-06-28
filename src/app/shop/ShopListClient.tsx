@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { FaStar, FaStore, FaBoxOpen } from "react-icons/fa";
@@ -101,10 +102,12 @@ export default function ShopListClient({ vendors }: { vendors: ShopItem[] }) {
                              -mt-10 z-10 shadow-xl relative"
                 >
                   {vendor.image ? (
-                    <img
+                    <Image
                       src={vendor.image}
                       alt={vendor.shopName || vendor.name}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="80px"
+                      className="object-cover"
                     />
                   ) : (
                     <FaStore size={34} className="text-blue-400" />

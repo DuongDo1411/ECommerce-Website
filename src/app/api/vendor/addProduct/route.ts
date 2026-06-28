@@ -1,6 +1,6 @@
-import { auth } from "@/auth";
 import uploadOnCloudinary from "@/lib/cloudinary";
 import connectDB from "@/lib/connectDB";
+import { requireRole } from "@/lib/rbac";
 import Product from "@/model/product.model";
 import User from "@/model/user.model";
 import { NextRequest, NextResponse } from "next/server";
@@ -8,10 +8,9 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
-    const session = await auth();
-    if (!session || !session.user?.id || !session.user.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 400 });
-    }
+    const authz = await requireRole(["vendor"], { mode: "api" });
+    if (authz instanceof NextResponse) return authz;
+    const { session } = authz;
 
     const formdata = await req.formData();
     const title = formdata.get("title") as string;

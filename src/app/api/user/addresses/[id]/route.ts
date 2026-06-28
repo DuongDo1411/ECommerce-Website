@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import User from "@/model/user.model";
+import type { AddressSubdoc } from "@/types/address";
 import { NextRequest, NextResponse } from "next/server";
 
 // PATCH /api/user/addresses/[id] — edit an address
@@ -21,7 +22,9 @@ export async function PATCH(
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
-    const addr = user.addresses?.find((a: any) => a._id.toString() === id);
+    const addr = user.addresses?.find(
+      (a: AddressSubdoc) => a._id.toString() === id,
+    );
     if (!addr) {
       return NextResponse.json(
         { message: "Địa chỉ không tồn tại" },
@@ -75,11 +78,11 @@ export async function DELETE(
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
     const wasDefault = user.addresses?.find(
-      (a: any) => a._id.toString() === id,
+      (a: AddressSubdoc) => a._id.toString() === id,
     )?.isDefault;
 
     user.addresses = (user.addresses ?? []).filter(
-      (a: any) => a._id.toString() !== id,
+      (a: AddressSubdoc) => a._id.toString() !== id,
     );
     // If the default was removed, promote the first remaining address.
     if (wasDefault && user.addresses.length > 0) {

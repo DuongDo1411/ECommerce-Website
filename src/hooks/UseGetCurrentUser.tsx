@@ -2,7 +2,7 @@
 import { AppDispatch } from "@/redux/store";
 import { setUserData } from "@/redux/userSlice";
 import axios from "axios";
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 
 function UseGetCurrentUser() {
@@ -18,7 +18,7 @@ function UseGetCurrentUser() {
       }
     };
     fetchUser();
-  }, []);
+  }, [dispatch]);
 }
 
 export default UseGetCurrentUser;

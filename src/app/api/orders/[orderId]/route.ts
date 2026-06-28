@@ -1,5 +1,10 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
+import {
+  commitBatchIfTerminalWithDelivery,
+  markRefundForCancelledOrder,
+  releaseBatchIfFullyCancelled,
+} from "@/lib/voucher/lifecycle";
 import Order from "@/model/order.model";
 import Product from "@/model/product.model";
 import { NextRequest, NextResponse } from "next/server";
@@ -49,7 +54,9 @@ export async function PATCH(
     // ── Hoàn lại tồn kho cho từng sản phẩm trong đơn ──
     for (const item of order.products) {
       const productId =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (item.product as any)?._id?.toString?.() ?? item.product.toString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const size: string | null = (item as any).size ?? null;
 
       if (size) {
@@ -79,15 +86,21 @@ export async function PATCH(
 
     order.orderStatus = "cancelled";
     order.cancelledAt = new Date();
+    markRefundForCancelledOrder(order);
     await order.save();
+    const released = await releaseBatchIfFullyCancelled(order.checkoutBatchId);
+    if (!released) {
+      await commitBatchIfTerminalWithDelivery(order.checkoutBatchId);
+    }
 
     return NextResponse.json(
       { message: "Đã hủy đơn hàng thành công", orderStatus: "cancelled" },
       { status: 200 },
     );
   } catch (error) {
+    console.error(error);
     return NextResponse.json(
-      { message: `Lỗi hủy đơn: ${error}` },
+      { message: "Khong the huy don hang" },
       { status: 500 },
     );
   }

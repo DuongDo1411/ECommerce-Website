@@ -11,6 +11,7 @@ import { useSelector } from "react-redux";
 import { motion, AnimatePresence } from "motion/react";
 import { RootState } from "@/redux/store";
 import ProductCard from "@/app/component/ProductCard";
+import { IProduct } from "@/model/product.model";
 import { FiSearch, FiX, FiFilter } from "react-icons/fi";
 import {
   LuShirt,
@@ -43,102 +44,35 @@ const CATEGORIES: { label: string; Icon: React.ComponentType<{ size?: number; cl
 
 type SortKey = "default" | "price-asc" | "price-desc" | "newest";
 
-export default function CategoryPageClient() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
+/** Exactly the product fields this page reads. */
+type CategoryProduct = {
+  _id: string | { toString(): string };
+  title?: string;
+  description?: string;
+  price: number;
+  category?: string;
+  isActive?: boolean;
+  verificationStatus?: "pending" | "approved" | "rejected";
+  createdAt?: string | Date;
+};
 
-  const allProductsData = useSelector(
-    (state: RootState) => state?.vendor?.allProductsData ?? []
-  );
-
-  const [localSearch, setLocalSearch] = useState(searchParams.get("q") ?? "");
-  const [sortKey, setSortKey] = useState<SortKey>("default");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const activeCat = decodeURIComponent(searchParams.get("cat") ?? "");
-  const activeQ = searchParams.get("q") ?? "";
-
-  // Sync localSearch on back/forward navigation
-  useEffect(() => {
-    setLocalSearch(searchParams.get("q") ?? "");
-  }, [searchParams]);
-
-  // Close drawer when route changes (category selected on mobile)
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [activeCat]);
-
-  // Prevent body scroll when mobile drawer is open
-  useEffect(() => {
-    document.body.style.overflow = sidebarOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [sidebarOpen]);
-
-  const updateParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      for (const [k, v] of Object.entries(updates)) {
-        if (!v) params.delete(k);
-        else params.set(k, v);
-      }
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    },
-    [searchParams, router, pathname]
-  );
-
-  const handleSearch = (value: string) => {
-    setLocalSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      updateParams({ q: value || null });
-    }, 300);
-  };
-
-  const handleCatSelect = (label: string | null) => {
-    updateParams({ cat: label });
-  };
-
-  const clearAll = () => {
-    setLocalSearch("");
-    updateParams({ q: null, cat: null });
-  };
-
-  const filtered = useMemo(() => {
-    const q = activeQ.trim().toLowerCase();
-    const cat = activeCat;
-
-    let result = Array.isArray(allProductsData)
-      ? allProductsData.filter(
-          (p: any) => p.isActive === true && p.verificationStatus === "approved"
-        )
-      : [];
-
-    if (cat) result = result.filter((p: any) => p.category === cat);
-    if (q)
-      result = result.filter(
-        (p: any) =>
-          p.title?.toLowerCase().includes(q) ||
-          p.description?.toLowerCase().includes(q)
-      );
-
-    if (sortKey === "price-asc")  result = [...result].sort((a, b) => a.price - b.price);
-    if (sortKey === "price-desc") result = [...result].sort((a, b) => b.price - a.price);
-    if (sortKey === "newest")
-      result = [...result].sort(
-        (a, b) =>
-          new Date(b.createdAt ?? 0).getTime() -
-          new Date(a.createdAt ?? 0).getTime()
-      );
-
-    return result;
-  }, [allProductsData, activeCat, activeQ, sortKey]);
-
-  const hasFilter = !!activeCat || !!activeQ;
-
-  /* ─── Sidebar content (shared between desktop & mobile drawer) ─── */
-  const SidebarContent = () => (
+/* ─── Sidebar content (shared between desktop & mobile drawer) ─── */
+function SidebarContent({
+  allProductsData,
+  activeCat,
+  hasFilter,
+  onSelectCategory,
+  onClose,
+  onClearAll,
+}: {
+  allProductsData: CategoryProduct[];
+  activeCat: string;
+  hasFilter: boolean;
+  onSelectCategory: (label: string | null) => void;
+  onClose: () => void;
+  onClearAll: () => void;
+}) {
+  return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-4 py-5 border-b border-white/10 flex items-center justify-between">
@@ -148,7 +82,7 @@ export default function CategoryPageClient() {
         </div>
         {/* Close button — mobile only */}
         <button
-          onClick={() => setSidebarOpen(false)}
+          onClick={onClose}
           className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
         >
           <FiX size={18} />
@@ -160,7 +94,7 @@ export default function CategoryPageClient() {
         {/* All */}
         <motion.button
           whileTap={{ scale: 0.97 }}
-          onClick={() => handleCatSelect(null)}
+          onClick={() => onSelectCategory(null)}
           className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all duration-200 relative group ${
             !activeCat
               ? "text-blue-400 bg-blue-500/10"
@@ -180,7 +114,7 @@ export default function CategoryPageClient() {
             <span className="ml-auto text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">
               {Array.isArray(allProductsData)
                 ? allProductsData.filter(
-                    (p: any) => p.isActive && p.verificationStatus === "approved"
+                    (p) => p.isActive && p.verificationStatus === "approved"
                   ).length
                 : 0}
             </span>
@@ -194,7 +128,7 @@ export default function CategoryPageClient() {
         {CATEGORIES.map((cat) => {
           const count = Array.isArray(allProductsData)
             ? allProductsData.filter(
-                (p: any) =>
+                (p) =>
                   p.isActive &&
                   p.verificationStatus === "approved" &&
                   p.category === cat.label
@@ -206,7 +140,7 @@ export default function CategoryPageClient() {
             <motion.button
               key={cat.label}
               whileTap={{ scale: 0.97 }}
-              onClick={() => handleCatSelect(cat.label)}
+              onClick={() => onSelectCategory(cat.label)}
               className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all duration-200 relative ${
                 isActive
                   ? "text-blue-400 bg-blue-500/10"
@@ -240,7 +174,7 @@ export default function CategoryPageClient() {
         <div className="px-4 py-3 border-t border-white/10">
           <motion.button
             whileTap={{ scale: 0.97 }}
-            onClick={clearAll}
+            onClick={onClearAll}
             className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20 text-sm transition-all duration-200"
           >
             <FiX size={13} /> Xóa bộ lọc
@@ -249,6 +183,109 @@ export default function CategoryPageClient() {
       )}
     </div>
   );
+}
+
+export default function CategoryPageClient() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const allProductsData = useSelector(
+    (state: RootState) => state?.vendor?.allProductsData ?? []
+  );
+
+  const [localSearch, setLocalSearch] = useState(searchParams.get("q") ?? "");
+  const [sortKey, setSortKey] = useState<SortKey>("default");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const activeCat = decodeURIComponent(searchParams.get("cat") ?? "");
+  const activeQ = searchParams.get("q") ?? "";
+
+  // Sync localSearch on back/forward navigation without a set-state-in-effect.
+  // React's supported "adjust state when a value changes" pattern: track the
+  // previous URL `q` in state and reconcile during render (no effect). When the
+  // URL's `q` changes externally (browser back/forward, chip clear), mirror it
+  // into the controlled input; normal typing leaves it untouched.
+  const [prevUrlQ, setPrevUrlQ] = useState(activeQ);
+  if (prevUrlQ !== activeQ) {
+    setPrevUrlQ(activeQ);
+    setLocalSearch(activeQ);
+  }
+
+  // Prevent body scroll when mobile drawer is open
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [sidebarOpen]);
+
+  const updateParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [k, v] of Object.entries(updates)) {
+        if (!v) params.delete(k);
+        else params.set(k, v);
+      }
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, router, pathname]
+  );
+
+  const handleSearch = (value: string) => {
+    setLocalSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      updateParams({ q: value || null });
+    }, 300);
+  };
+
+  const handleCatSelect = (label: string | null) => {
+    // Close the mobile drawer when a category is selected (was previously an
+    // effect keyed on activeCat). Selecting a category on mobile closes the drawer.
+    setSidebarOpen(false);
+    updateParams({ cat: label });
+  };
+
+  const clearAll = () => {
+    setSidebarOpen(false);
+    setLocalSearch("");
+    updateParams({ q: null, cat: null });
+  };
+
+  const products = allProductsData as CategoryProduct[];
+
+  const filtered = useMemo(() => {
+    const q = activeQ.trim().toLowerCase();
+    const cat = activeCat;
+    const source = allProductsData as CategoryProduct[];
+
+    let result = Array.isArray(source)
+      ? source.filter(
+          (p) => p.isActive === true && p.verificationStatus === "approved"
+        )
+      : [];
+
+    if (cat) result = result.filter((p) => p.category === cat);
+    if (q)
+      result = result.filter(
+        (p) =>
+          p.title?.toLowerCase().includes(q) ||
+          p.description?.toLowerCase().includes(q)
+      );
+
+    if (sortKey === "price-asc")  result = [...result].sort((a, b) => a.price - b.price);
+    if (sortKey === "price-desc") result = [...result].sort((a, b) => b.price - a.price);
+    if (sortKey === "newest")
+      result = [...result].sort(
+        (a, b) =>
+          new Date(b.createdAt ?? 0).getTime() -
+          new Date(a.createdAt ?? 0).getTime()
+      );
+
+    return result;
+  }, [allProductsData, activeCat, activeQ, sortKey]);
+
+  const hasFilter = !!activeCat || !!activeQ;
 
   return (
     <section className="min-h-screen bg-linear-to-br from-gray-900 via-black to-gray-900">
@@ -279,7 +316,14 @@ export default function CategoryPageClient() {
 
         {/* ── Desktop sidebar (lg+) ── */}
         <aside className="hidden lg:flex flex-col w-56 xl:w-64 shrink-0 sticky top-20 max-h-[calc(100vh-5.5rem)] bg-gray-900/60 border border-white/10 rounded-2xl overflow-hidden">
-          <SidebarContent />
+          <SidebarContent
+            allProductsData={products}
+            activeCat={activeCat}
+            hasFilter={hasFilter}
+            onSelectCategory={handleCatSelect}
+            onClose={() => setSidebarOpen(false)}
+            onClearAll={clearAll}
+          />
         </aside>
 
         {/* ── Mobile backdrop ── */}
@@ -307,7 +351,14 @@ export default function CategoryPageClient() {
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
               className="fixed top-0 left-0 h-full w-72 z-50 lg:hidden bg-gray-950 border-r border-white/10 flex flex-col"
             >
-              <SidebarContent />
+              <SidebarContent
+                allProductsData={products}
+                activeCat={activeCat}
+                hasFilter={hasFilter}
+                onSelectCategory={handleCatSelect}
+                onClose={() => setSidebarOpen(false)}
+                onClearAll={clearAll}
+              />
             </motion.aside>
           )}
         </AnimatePresence>
@@ -439,9 +490,9 @@ export default function CategoryPageClient() {
                 key="grid"
                 className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4"
               >
-                {filtered.map((p: any, index: number) => (
+                {filtered.map((p, index) => (
                   <motion.div
-                    key={p._id}
+                    key={String(p._id)}
                     layout
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -451,7 +502,7 @@ export default function CategoryPageClient() {
                       delay: Math.min(index * 0.04, 0.3),
                     }}
                   >
-                    <ProductCard product={p} />
+                    <ProductCard product={p as unknown as IProduct} />
                   </motion.div>
                 ))}
               </motion.div>

@@ -1,18 +1,30 @@
 "use client";
 import { IProduct } from "@/model/product.model";
-import { motion } from "motion/react";
-import React, { useState, useRef } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import Image from "next/image";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   FaArrowLeft,
   FaCheckCircle,
   FaShieldAlt,
   FaStar,
+  FaTicketAlt,
   FaTruck,
   FaUndo,
 } from "react-icons/fa";
 import { MdLocalOffer } from "react-icons/md";
 import { useCart } from "@/context/CartContext";
+import VoucherCard from "@/app/component/VoucherCard";
+import { sortVouchers } from "@/app/component/Voucher/sortVouchers";
+import { useCollectVoucher } from "@/app/component/Voucher/useCollectVoucher";
+import {
+  toId,
+  getPopulatedUser,
+  ProductVendorLike,
+  ProductReviewLike,
+  PublicVoucher,
+} from "@/lib/productView";
 
 interface Props {
   product: IProduct;
@@ -45,9 +57,39 @@ export default function ProductDetailClient({ product }: Props) {
   const isCurrentSizeAvailable = selectedSizeStock > 0;
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartMsg, setCartMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [vouchers, setVouchers] = useState<PublicVoucher[]>([]);
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
 
-  const productId = (product._id as any)?.toString?.() ?? String(product._id);
+  useEffect(() => {
+    if (!showVoucherModal) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowVoucherModal(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showVoucherModal]);
+
+  const productId = toId(product._id);
   const { refreshCart } = useCart();
+  const { collectVoucher, collectingId, collectedIds, message: voucherMsg } = useCollectVoucher();
+
+  useEffect(() => {
+    fetch(`/api/vouchers?productId=${productId}&limit=4&sort=bestValue`)
+      .then((res) => res.json())
+      .then((data) => setVouchers(data.vouchers ?? []))
+      .catch(() => setVouchers([]));
+  }, [productId]);
+
+  const sortedVouchers = sortVouchers(vouchers);
+  const topVouchers = sortedVouchers.slice(0, 3);
+  const bestVoucher = sortedVouchers[0];
+  const bestVoucherLabel = bestVoucher
+    ? bestVoucher.discountType === "freeship"
+      ? "Freeship"
+      : bestVoucher.discountType === "percentage"
+        ? `Giảm ${bestVoucher.discountValue}%`
+        : `Giảm ${Number(bestVoucher.discountValue ?? 0).toLocaleString("vi-VN")}₫`
+    : "";
 
   const handleAddToCart = async (goToCart = false) => {
     if (!isCurrentSizeAvailable) return;
@@ -91,6 +133,8 @@ export default function ProductDetailClient({ product }: Props) {
       ? product.reviews.reduce((sum, r) => sum + r.rating, 0) /
         product.reviews.length
       : null;
+
+  const vendor = product.vendor as ProductVendorLike | undefined;
 
   return (
     <div className="min-h-screen w-full bg-linear-to-br from-gray-950 via-black to-gray-950 text-white">
@@ -142,6 +186,11 @@ export default function ProductDetailClient({ product }: Props) {
                   <MdLocalOffer size={11} /> COD
                 </span>
               )}
+              {bestVoucher && (
+                <span className="flex items-center gap-1 bg-blue-500/90 text-white text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
+                  <FaTicketAlt size={10} /> {bestVoucherLabel}
+                </span>
+              )}
             </div>
 
             {/* Gradient overlay bottom */}
@@ -163,10 +212,12 @@ export default function ProductDetailClient({ product }: Props) {
                       : "border-white/10 opacity-55 hover:opacity-90 hover:border-white/30"
                   }`}
                 >
-                  <img
+                  <Image
                     src={img}
                     alt={`Ảnh ${i + 1}`}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 768px) 25vw, 120px"
+                    className="object-cover"
                     draggable={false}
                   />
                   {/* Active indicator */}
@@ -237,6 +288,44 @@ export default function ProductDetailClient({ product }: Props) {
                 : "Hết hàng"}
             </span>
           </div>
+
+          {topVouchers.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-white">Voucher có thể lưu</p>
+                {sortedVouchers.length > 3 && (
+                  <button
+                    onClick={() => setShowVoucherModal(true)}
+                    className="text-xs font-semibold text-blue-300 hover:text-blue-200"
+                  >
+                    Xem thêm &gt;
+                  </button>
+                )}
+              </div>
+              <div className="grid gap-2">
+                {topVouchers.map((voucher) => {
+                  const collected = voucher.collected || collectedIds.has(voucher._id);
+                  return (
+                    <VoucherCard
+                      key={voucher._id}
+                      voucher={voucher}
+                      accent="blue"
+                      collected={collected}
+                      actionLabel={
+                        collected
+                          ? "Đã lưu"
+                          : collectingId === voucher._id
+                            ? "Đang lưu..."
+                            : "Lưu"
+                      }
+                      onClick={() => !collected && collectVoucher(voucher._id)}
+                    />
+                  );
+                })}
+              </div>
+              {voucherMsg && <p className="text-xs text-emerald-300">{voucherMsg}</p>}
+            </div>
+          )}
 
           {/* Divider */}
           <div className="h-px w-full bg-white/10" />
@@ -401,34 +490,36 @@ export default function ProductDetailClient({ product }: Props) {
           </div>
 
           {/* Vendor */}
-          {product.vendor && (
+          {vendor && (
             <motion.div
               whileHover={{ scale: 1.01, borderColor: "rgba(59,130,246,0.4)" }}
               whileTap={{ scale: 0.98 }}
               onClick={() =>
                 router.push(
-                  `/shop/${(product.vendor as any)._id ?? (product.vendor as any).id}`
+                  `/shop/${toId(vendor._id) || vendor.id}`
                 )
               }
               className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 cursor-pointer hover:bg-white/8 transition-colors duration-200"
             >
               {/* Avatar: ảnh thật nếu có, fallback về chữ cái đầu */}
-              <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-blue-500/40 shrink-0 bg-blue-600/20 flex items-center justify-center">
-                {(product.vendor as any).image ? (
-                  <img
-                    src={(product.vendor as any).image}
+              <div className="relative w-11 h-11 rounded-full overflow-hidden border-2 border-blue-500/40 shrink-0 bg-blue-600/20 flex items-center justify-center">
+                {vendor.image ? (
+                  <Image
+                    src={vendor.image}
                     alt={
-                      (product.vendor as any).shopName ||
-                      (product.vendor as any).name ||
+                      vendor.shopName ||
+                      vendor.name ||
                       "Vendor"
                     }
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="44px"
+                    className="object-cover"
                     draggable={false}
                   />
                 ) : (
                   <span className="text-blue-400 font-bold text-base">
-                    {((product.vendor as any).shopName ||
-                      (product.vendor as any).name ||
+                    {(vendor.shopName ||
+                      vendor.name ||
                       "V")[0].toUpperCase()}
                   </span>
                 )}
@@ -437,8 +528,8 @@ export default function ProductDetailClient({ product }: Props) {
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-gray-500">Người bán</p>
                 <p className="text-sm font-semibold text-white truncate">
-                  {(product.vendor as any).shopName ||
-                    (product.vendor as any).name ||
+                  {vendor.shopName ||
+                    vendor.name ||
                     "Vendor"}
                 </p>
               </div>
@@ -502,6 +593,61 @@ export default function ProductDetailClient({ product }: Props) {
       </div>
 
       {/* ═══ Reviews Section ═══ */}
+      <AnimatePresence>
+        {showVoucherModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+            onClick={() => setShowVoucherModal(false)}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pdp-voucher-title"
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 24, opacity: 0 }}
+              className="max-h-[82vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-gray-950 p-5"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h3 id="pdp-voucher-title" className="text-lg font-bold">Tất cả voucher</h3>
+                <button
+                  onClick={() => setShowVoucherModal(false)}
+                  className="rounded-lg bg-white/10 px-3 py-1 text-sm text-gray-300 hover:text-white"
+                >
+                  Đóng
+                </button>
+              </div>
+              <div className="grid gap-3">
+                {sortedVouchers.map((voucher) => {
+                  const collected = voucher.collected || collectedIds.has(voucher._id);
+                  return (
+                    <VoucherCard
+                      key={voucher._id}
+                      voucher={voucher}
+                      accent="blue"
+                      variant="vertical"
+                      collected={collected}
+                      actionLabel={
+                        collected
+                          ? "Đã lưu"
+                          : collectingId === voucher._id
+                            ? "Đang lưu..."
+                            : "Lưu"
+                      }
+                      onClick={() => !collected && collectVoucher(voucher._id)}
+                    />
+                  );
+                })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <ReviewSection product={product} />
     </div>
   );
@@ -511,10 +657,12 @@ export default function ProductDetailClient({ product }: Props) {
 /*  ReviewSection — tách ra để dùng state riêng                */
 /* ─────────────────────────────────────────────────────────── */
 function ReviewSection({ product }: { product: IProduct }) {
-  const productId = (product._id as any)?.toString?.() ?? String(product._id);
+  const productId = toId(product._id);
 
   // Local reviews state — bắt đầu từ dữ liệu server, cập nhật sau submit
-  const [reviews, setReviews] = useState<any[]>(product.reviews ?? []);
+  const [reviews, setReviews] = useState<ProductReviewLike[]>(
+    (product.reviews ?? []) as ProductReviewLike[],
+  );
   const [hoverRating, setHoverRating] = useState(0);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
@@ -714,10 +862,13 @@ function ReviewSection({ product }: { product: IProduct }) {
           />
           {imagePreview ? (
             <div className="relative inline-block">
-              <img
+              <Image
                 src={imagePreview}
                 alt="preview"
+                width={96}
+                height={96}
                 className="w-24 h-24 object-cover rounded-xl border border-white/20"
+                unoptimized
               />
               <button
                 onClick={removeImage}
@@ -790,7 +941,9 @@ function ReviewSection({ product }: { product: IProduct }) {
           </div>
         ) : (
           <div className="space-y-5">
-            {reviews.map((review: any, i: number) => (
+            {reviews.map((review: ProductReviewLike, i: number) => {
+              const reviewUser = getPopulatedUser(review.user);
+              return (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 12 }}
@@ -799,15 +952,17 @@ function ReviewSection({ product }: { product: IProduct }) {
                 className="flex gap-3 border-b border-white/5 pb-5 last:border-0 last:pb-0"
               >
                 {/* Avatar */}
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-sm font-bold shrink-0 border border-white/10">
-                  {review.user?.image ? (
-                    <img
-                      src={review.user.image}
+                <div className="relative w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-sm font-bold shrink-0 border border-white/10">
+                  {reviewUser.image ? (
+                    <Image
+                      src={reviewUser.image}
                       alt="avatar"
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="40px"
+                      className="object-cover"
                     />
                   ) : (
-                    <span>{(review.user?.name || "U")[0].toUpperCase()}</span>
+                    <span>{(reviewUser.name || "U")[0].toUpperCase()}</span>
                   )}
                 </div>
 
@@ -815,7 +970,7 @@ function ReviewSection({ product }: { product: IProduct }) {
                   {/* Name + Rating + Date */}
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <p className="text-sm font-semibold text-white">
-                      {review.user?.name || "Khách hàng"}
+                      {reviewUser.name || "Khách hàng"}
                     </p>
                     <div className="flex items-center gap-0.5">
                       {[1, 2, 3, 4, 5].map((star) => (
@@ -846,16 +1001,19 @@ function ReviewSection({ product }: { product: IProduct }) {
 
                   {/* Review Image */}
                   {review.image && (
-                    <img
+                    <Image
                       src={review.image}
                       alt="Ảnh đánh giá"
+                      width={96}
+                      height={96}
                       className="w-24 h-24 object-cover rounded-xl border border-white/10 mt-1 cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => window.open(review.image, "_blank")}
                     />
                   )}
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         )}
       </motion.div>
