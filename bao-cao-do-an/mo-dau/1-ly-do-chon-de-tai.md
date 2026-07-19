@@ -1,0 +1,10 @@
+﻿# 1. Lý do chọn đề tài
+
+Thương mại điện tử ở Việt Nam đã chuyển từ một kênh bổ trợ thành kênh mua bán chính. Theo Cục Thương mại điện tử và Kinh tế số thuộc Bộ Công Thương, doanh thu bán lẻ trực tuyến năm 2025 lần đầu vượt 31 tỷ USD, tăng khoảng 25,5% so với năm trước và chiếm khoảng 10% tổng mức bán lẻ hàng hóa và doanh thu dịch vụ tiêu dùng của cả nước, giữ Việt Nam trong nhóm ba thị trường lớn nhất Đông Nam Á [1]. Một số nguồn khác ước tính quy mô thị trường còn cao hơn, quanh mốc 32 tỷ USD [3].
+
+Dòng tiền đó không chảy đều vào hàng trăm nghìn website riêng lẻ mà dồn về một số sàn giao dịch. Theo báo cáo năm 2025 của Metric, bốn sàn Shopee, TikTok Shop, Lazada và Tiki đạt tổng doanh số 429,7 nghìn tỷ đồng, trong đó riêng Shopee và TikTok Shop đã nắm hơn 97% thị phần [2]. Người mua tìm đến sàn vì có sẵn nhiều người bán cùng một chỗ thanh toán và giao hàng thống nhất, còn người bán nhỏ tìm đến sàn vì không phải tự dựng hạ tầng. Đây chính là mô hình sàn đa nhà bán mà đề tài hướng tới.
+
+Điều khiến một sàn đa nhà bán khó dựng hơn một website bán hàng thông thường nằm ở chỗ mỗi giao dịch đụng đến nhiều người bán cùng lúc. Một giỏ hàng có thể gồm sản phẩm của ba bốn shop khác nhau, và hệ thống phải tách thành từng đơn giao riêng, tính phí vận chuyển cũng như áp mã giảm giá theo từng shop. Khi nhiều khách cùng đặt một sản phẩm trong vài giây, phần trừ kho phải chính xác tuyệt đối để không bán vượt số lượng còn lại. Thanh toán và giao hàng lại phụ thuộc vào hệ thống bên ngoài chứ không nằm trong tầm kiểm soát của ứng dụng.
+
+Nhiều đồ án thương mại điện tử hiện nay né tránh đúng những điểm khó này: dừng ở một người bán, thanh toán chỉ đánh dấu trên giao diện, tồn kho trừ theo kiểu đọc rồi ghi lại. Đề tài "Xây dựng website thương mại điện tử đa nhà bán Ecoshop" được chọn để giải quyết trực tiếp các vấn đề đó, với ba nhóm người dùng là người mua, người bán và quản trị viên, tích hợp cổng thanh toán VNPay cùng dịch vụ vận chuyển Giao Hàng Nhanh gọi tắt là GHN, và tập trung vào bài toán giữ toàn vẹn dữ liệu khi đặt hàng. Những hạn chế vừa nêu được mổ xẻ kỹ hơn ở phần Khoảng trống ngay dưới đây.
+

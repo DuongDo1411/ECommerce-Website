@@ -10,6 +10,21 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Gửi mail dùng chung (tái dùng transporter sẵn có, đừng tạo connection pool thứ hai).
+export async function sendMail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  fromName?: string;
+}) {
+  await transporter.sendMail({
+    from: `"${opts.fromName ?? "Ecoshop"}" <${process.env.GMAIL_USER}>`,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+  });
+}
+
 export async function sendDeliveryOtpEmail(email: string, otp: string) {
   await transporter.sendMail({
     from: `"Order Delivery" <${process.env.GMAIL_USER}>`,

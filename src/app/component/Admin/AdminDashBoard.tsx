@@ -6,6 +6,7 @@ import {
   FaCheckCircle,
   FaBox,
   FaTicketAlt,
+  FaGavel,
 } from "react-icons/fa";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import { AnimatePresence, motion } from "motion/react";
@@ -14,6 +15,7 @@ import VendorDetails from "./VendorDetails";
 import VendorApproval from "./VendorApproval";
 import ProductApproval from "./ProductApproval";
 import AdminVouchers from "./AdminVouchers";
+import AdminReturns from "./AdminReturns";
 
 function AdminDashBoard() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -31,6 +33,8 @@ function AdminDashBoard() {
         return <ProductApproval />;
       case "vouchers":
         return <AdminVouchers />;
+      case "returns":
+        return <AdminReturns />;
     }
   };
 
@@ -48,6 +52,7 @@ function AdminDashBoard() {
       icon: <FaBox size={22} />,
     },
     { id: "vouchers", label: "Voucher Sàn", icon: <FaTicketAlt size={22} /> },
+    { id: "returns", label: "Hoàn trả", icon: <FaGavel size={22} /> },
   ];
 
   return (

@@ -378,6 +378,10 @@ export interface GHNCreateOrderParams {
   content: string;
   clientOrderCode: string; // = order._id, for reconciliation
   items: { name: string; quantity: number; weight: number; price?: number }[];
+  // 1 = sender pays (billed to our GHN shop account), 2 = receiver pays on delivery.
+  // Outbound keeps the default 2 (buyer pays); reverse shipments choose per fault
+  // — see lib/returns/shipping.ts.
+  paymentTypeId?: number;
 }
 
 export interface GHNCreateOrderResult {
@@ -394,7 +398,7 @@ export function createGHNOrder(
     "/shiip/public-api/v2/shipping-order/create",
     "POST",
     {
-      payment_type_id: 2, // buyer pays shipping fee (business decision)
+      payment_type_id: p.paymentTypeId ?? 2, // default: buyer pays (business decision)
       required_note: GHN_REQUIRED_NOTE,
       service_type_id: GHN_SERVICE_TYPE_ECOMMERCE,
       service_id: p.serviceId,
@@ -436,19 +440,38 @@ interface GHNCancelResult {
   message: string;
 }
 
-// Returns false (without throwing) when GHN refuses (e.g. already picked up),
-// so caller can still cancel internally.
-export async function cancelGHNOrder(orderCode: string): Promise<boolean> {
+// Ba kết cục KHÁC NHAU về hệ quả, không được gộp thành true/false:
+//  - cancelled: GHN đã huỷ vận đơn → an toàn đổi trạng thái nội bộ theo.
+//  - not_cancellable: GHN từ chối vĩnh viễn (đã lấy hàng / mã sai) → thử lại vô ích,
+//    caller phải xử theo hướng "kiện hàng vẫn đang đi".
+//  - temporary_failure: GHN sập / mạng lỗi → CHƯA biết huỷ được hay không, tuyệt đối
+//    không đổi trạng thái, để caller trả 503 cho thử lại.
+export type GHNCancelOutcome =
+  | "cancelled"
+  | "not_cancellable"
+  | "temporary_failure";
+
+export async function cancelGHNOrder(
+  orderCode: string,
+): Promise<GHNCancelOutcome> {
   try {
     const data = await ghnOrderFetch<GHNCancelResult[]>(
       "/shiip/public-api/v2/switch-status/cancel",
       "POST",
       { order_codes: [orderCode] },
     );
-    return data?.[0]?.result === true;
+    // GHN phản hồi được nhưng result=false = từ chối có chủ đích (thường do đã lấy
+    // hàng) — retry không đổi được gì.
+    return data?.[0]?.result === true ? "cancelled" : "not_cancellable";
   } catch (err) {
-    console.error("[GHN] cancel failed:", (err as Error).message);
-    return false;
+    // 5xx/429 = GHN đang trục trặc, đáng thử lại. 4xx = yêu cầu sai (mã không tồn
+    // tại...), thử lại vô ích. Lỗi mạng/parse (không phải GHNError) = tạm thời.
+    if (err instanceof GHNError && err.code < 500 && err.code !== 429) {
+      console.error("[GHN] cancel bị từ chối:", err.message);
+      return "not_cancellable";
+    }
+    console.error("[GHN] cancel lỗi tạm thời:", (err as Error).message);
+    return "temporary_failure";
   }
 }
 
@@ -456,6 +479,10 @@ export async function cancelGHNOrder(orderCode: string): Promise<boolean> {
 
 export interface GHNOrderDetail {
   order_code: string;
+  // Danh tính do chính GHN khẳng định — dùng để đối chiếu với webhook, vì body của
+  // webhook là dữ liệu người ngoài gửi tới và không được tin.
+  client_order_code?: string;
+  shop_id?: number;
   status: string;
   leadtime: string;
   finish_date: string | null;
@@ -463,6 +490,9 @@ export interface GHNOrderDetail {
   is_cod_collected: boolean;
   log: { status: string; updated_date: string }[];
 }
+
+// ShopId đã cấu hình — webhook đối chiếu để loại kiện hàng không thuộc shop của sàn.
+export const GHN_CONFIGURED_SHOP_ID = SHOP_ID;
 
 export async function getGHNOrderDetail(
   orderCode: string,
@@ -474,6 +504,23 @@ export async function getGHNOrderDetail(
     false,
   );
   return data[0];
+}
+
+// Lookup by OUR code (order._id, or "RET-<returnRequestId>" for reverse waybills).
+// Used to verify webhook payloads against GHN itself — the webhook is public and
+// its body must never be trusted on its own.
+export async function getGHNOrderDetailByClientCode(
+  clientOrderCode: string,
+): Promise<GHNOrderDetail | null> {
+  const data = await ghnOrderFetch<GHNOrderDetail | GHNOrderDetail[]>(
+    "/shiip/public-api/v2/shipping-order/detail-by-client-code",
+    "POST",
+    { client_order_code: clientOrderCode },
+    false,
+  );
+  // GHN is inconsistent here: object on some routes, single-element array on others.
+  const detail = Array.isArray(data) ? data[0] : data;
+  return detail ?? null;
 }
 
 /* ------------------------------- Print --------------------------------- */
@@ -525,13 +572,27 @@ export function mapGhnStatusToVietnamese(status: string): string {
   return STATUS_VI[status] ?? `${status} (đang cập nhật)`;
 }
 
+// GHN statuses meaning the OUTBOUND parcel is coming back / never arrived.
+// These are carrier facts, not business outcomes.
+export const GHN_OUTBOUND_FAILURE_STATUSES = [
+  "returned",
+  "return_fail",
+  "lost",
+  "damage",
+];
+
 // Maps a GHN status to our internal order.orderStatus, or null to keep "shipped".
+//
+// A failed outbound delivery maps to "delivery_exception", never straight to
+// "returned": the goods are only truly returned once a human confirms they are
+// physically back (inspection), which is what releases stock and refunds. A
+// carrier signal alone must not restock — GHN also reports "lost"/"damage" here,
+// where nothing sellable comes back at all.
 export function mapGhnStatusToOrderStatus(
   status: string,
-): "delivered" | "cancelled" | "returned" | null {
+): "delivered" | "cancelled" | "delivery_exception" | null {
   if (status === "delivered") return "delivered";
   if (status === "cancel") return "cancelled";
-  if (["returned", "return_fail", "lost", "damage"].includes(status))
-    return "returned";
+  if (GHN_OUTBOUND_FAILURE_STATUSES.includes(status)) return "delivery_exception";
   return null;
 }

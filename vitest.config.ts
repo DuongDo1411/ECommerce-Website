@@ -17,5 +17,10 @@ export default defineConfig({
     pool: "forks",
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Test tích hợp khởi động MongoMemoryReplSet riêng cho từng file; chạy song song
+    // nhiều file cùng lúc trên máy tải nặng có thể vượt mốc 5s mặc định vì tranh chấp
+    // tài nguyên (không phải lỗi logic). Nới rộng để suite xanh ổn định.
+    testTimeout: 30000,
+    hookTimeout: 120000,
   },
 });

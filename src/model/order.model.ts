@@ -8,6 +8,8 @@ export interface IOrder {
     quantity: number;
     price: number;
     size?: string;
+    // Snapshot chính sách đổi/trả (Product.replacementDays) tại thời điểm đặt.
+    returnWindowDays?: number;
   }[];
 
   buyer: IUser;
@@ -40,12 +42,28 @@ export interface IOrder {
     | "shipped"
     | "delivered"
     | "returned"
+    | "delivery_exception"
     | "cancelled";
 
   cancelledAt?: Date;
   // ✅ NEW: RETURNED AMOUNT
   returnedAmount?: number;
   refundStatus?: "none" | "pending" | "processed" | "failed";
+
+  // ── Hoàn/Trả hàng (Return & Refund) ──
+  returnRequest?: mongoose.Types.ObjectId;
+  // Nguồn của cửa sổ đổi/trả — để đối soát: checkout_snapshot = chốt lúc đặt (đáng tin
+  // nhất); legacy_backfill = migration suy từ Product hiện tại; legacy_fallback = tính
+  // tạm khi mở yêu cầu vì đơn cũ chưa có snapshot.
+  returnPolicySource?: "checkout_snapshot" | "legacy_backfill" | "legacy_fallback";
+  returnWindowDaysSnapshot?: number; // = min(products[].returnWindowDays)
+  returnEligibleUntil?: Date; // set khi delivered = deliveryDate + snapshot
+  returnedAt?: Date;
+  returnSource?: "customer_return" | "delivery_failure";
+  // Idempotency hoàn kho: chỉ hoàn đúng MỘT lần cho mỗi order.
+  stockRestoredAt?: Date;
+  stockRestorationReason?: "cancelled" | "customer_return" | "delivery_failure";
+  stockDisposition?: "restock" | "damaged" | "lost" | "quarantine";
 
   address: {
     name: string;
@@ -112,6 +130,9 @@ const orderSchema = new mongoose.Schema<IOrder>(
         },
         size: {
           type: String,
+        },
+        returnWindowDays: {
+          type: Number,
         },
       },
     ],
@@ -219,6 +240,7 @@ const orderSchema = new mongoose.Schema<IOrder>(
         "shipped",
         "delivered",
         "returned",
+        "delivery_exception",
         "cancelled",
       ],
       default: "pending",
@@ -237,6 +259,40 @@ const orderSchema = new mongoose.Schema<IOrder>(
       type: String,
       enum: ["none", "pending", "processed", "failed"],
       default: "none",
+    },
+
+    // ── Hoàn/Trả hàng ──
+    returnRequest: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ReturnRequest",
+    },
+    returnPolicySource: {
+      type: String,
+      enum: ["checkout_snapshot", "legacy_backfill", "legacy_fallback"],
+    },
+    returnWindowDaysSnapshot: {
+      type: Number,
+    },
+    returnEligibleUntil: {
+      type: Date,
+    },
+    returnedAt: {
+      type: Date,
+    },
+    returnSource: {
+      type: String,
+      enum: ["customer_return", "delivery_failure"],
+    },
+    stockRestoredAt: {
+      type: Date,
+    },
+    stockRestorationReason: {
+      type: String,
+      enum: ["cancelled", "customer_return", "delivery_failure"],
+    },
+    stockDisposition: {
+      type: String,
+      enum: ["restock", "damaged", "lost", "quarantine"],
     },
 
     address: {

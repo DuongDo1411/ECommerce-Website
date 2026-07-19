@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { MdArrowBack, MdDashboard, MdMessage } from "react-icons/md";
-import { FaBoxOpen, FaShoppingCart, FaStore } from "react-icons/fa";
+import { FaBoxOpen, FaShoppingCart, FaStore, FaUndoAlt } from "react-icons/fa";
 import { FaTicketAlt } from "react-icons/fa";
 import { AiOutlineClose, AiOutlineMenu } from "react-icons/ai";
 import { AnimatePresence, motion } from "motion/react";
@@ -11,6 +11,7 @@ import Dashboard from "./Dashboard";
 import VendorMessages from "./VendorMessages";
 import VendorOrders from "./VendorOrders";
 import VendorProducts from "./VendorProducts";
+import VendorReturns from "./VendorReturns";
 import VendorShopView from "./VendorShopView";
 import VendorVouchers from "./VendorVouchers";
 import { IUser } from "@/model/user.model";
@@ -20,6 +21,7 @@ const menu = [
   { id: "dashboard", label: "Dashboard", icon: <MdDashboard size={22} /> },
   { id: "products", label: "Products", icon: <FaBoxOpen size={22} /> },
   { id: "orders", label: "Orders", icon: <FaShoppingCart size={22} /> },
+  { id: "returns", label: "Hoàn trả", icon: <FaUndoAlt size={22} /> },
   { id: "vouchers", label: "Khuyến mãi", icon: <FaTicketAlt size={22} /> },
   { id: "messages", label: "Messages", icon: <MdMessage size={22} /> },
 ];
@@ -81,6 +83,8 @@ function VendorDashBoard({ user }: { user: IUser }) {
         return <VendorProducts />;
       case "orders":
         return <VendorOrders />;
+      case "returns":
+        return <VendorReturns />;
       case "vouchers":
         return <VendorVouchers />;
       case "messages":

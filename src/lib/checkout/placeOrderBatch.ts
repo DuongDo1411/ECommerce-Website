@@ -5,6 +5,7 @@ import { reserveQuoteVouchers } from "@/lib/voucher/lifecycle";
 import { computeOrderQuote } from "@/lib/voucher/quote";
 import CheckoutBatch from "@/model/checkoutBatch.model";
 import Order from "@/model/order.model";
+import Product from "@/model/product.model";
 import User, { IUser } from "@/model/user.model";
 import { deductStockAtomic } from "./stock";
 import {
@@ -109,6 +110,21 @@ export async function placeOrderBatch(
     );
   }
 
+  // Snapshot chính sách đổi/trả: đọc replacementDays NGOÀI transaction (giống quote,
+  // tránh thêm I/O đọc trong transaction). Khóa cửa sổ trả tại thời điểm đặt.
+  const returnProductIds = [
+    ...new Set(quote.perOrder.map((item) => item.productId)),
+  ];
+  const returnProducts = await Product.find({ _id: { $in: returnProductIds } })
+    .select("replacementDays")
+    .lean();
+  const replacementDaysById = new Map<string, number>(
+    returnProducts.map((p) => [
+      String(p._id),
+      Math.max(0, Number(p.replacementDays ?? 0)),
+    ]),
+  );
+
   const checkoutBatchId = crypto.randomUUID();
   const txnRef =
     input.paymentMethod === "vnpay"
@@ -167,6 +183,7 @@ export async function placeOrderBatch(
           );
         }
 
+        const returnWindowDays = replacementDaysById.get(item.productId) ?? 0;
         const [order] = await Order.create(
           [
             {
@@ -176,6 +193,7 @@ export async function placeOrderBatch(
                   product: item.productId,
                   quantity: item.quantity,
                   price: item.unitPrice,
+                  returnWindowDays,
                   ...(item.size ? { size: item.size } : {}),
                 },
               ],
@@ -195,6 +213,8 @@ export async function placeOrderBatch(
               isPaid: false,
               orderStatus: "pending",
               returnedAmount: 0,
+              returnPolicySource: "checkout_snapshot",
+              returnWindowDaysSnapshot: returnWindowDays,
               address,
               ghn: { serviceId: item.serviceId, visibleToCustomer: false },
               ...(txnRef ? { paymentDetails: { vnpayTxnRef: txnRef } } : {}),

@@ -18,6 +18,27 @@ export async function GET(req: NextRequest) {
 
     const now = new Date();
 
+    // Doanh thu thuần của MỘT đơn giao thành công: gross trừ phần đã hoàn (chỉ khi
+    // tiền thực sự đã chuyển). Dùng chung cho tổng, tháng và biểu đồ để ba số liệu
+    // không lệch nhau.
+    const netRevenueExpr = {
+      $max: [
+        0,
+        {
+          $subtract: [
+            { $add: ["$productsTotal", "$serviceCharge"] },
+            {
+              $cond: [
+                { $eq: ["$refundStatus", "processed"] },
+                { $ifNull: ["$returnedAmount", 0] },
+                0,
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
     // 1. Orders stats
     const orderStats = await Order.aggregate([
       { $match: { productVendor: vendorId } },
@@ -28,8 +49,8 @@ export async function GET(req: NextRequest) {
           revenue: {
             $sum: {
               $cond: [
-                { $eq: ["$orderStatus", "delivered"] },
-                { $add: ["$productsTotal", "$serviceCharge"] },
+                { $in: ["$orderStatus", ["delivered", "returned"]] },
+                netRevenueExpr,
                 0,
               ],
             },
@@ -44,6 +65,7 @@ export async function GET(req: NextRequest) {
       shipped: 0,
       delivered: 0,
       returned: 0,
+      delivery_exception: 0,
       cancelled: 0,
     };
     let totalRevenue = 0;
@@ -52,7 +74,9 @@ export async function GET(req: NextRequest) {
     for (const stat of orderStats) {
       ordersByStatus[stat._id] = stat.count;
       totalOrders += stat.count;
-      if (stat._id === "delivered") totalRevenue = stat.revenue;
+      if (stat._id === "delivered" || stat._id === "returned") {
+        totalRevenue += stat.revenue;
+      }
     }
 
     // 1b. Monthly revenue (current month, delivered orders only)
@@ -61,14 +85,14 @@ export async function GET(req: NextRequest) {
       {
         $match: {
           productVendor: vendorId,
-          orderStatus: "delivered",
+          orderStatus: { $in: ["delivered", "returned"] },
           createdAt: { $gte: startOfMonth },
         },
       },
       {
         $group: {
           _id: null,
-          total: { $sum: { $add: ["$productsTotal", "$serviceCharge"] } },
+          total: { $sum: netRevenueExpr },
         },
       },
     ]);
@@ -94,7 +118,7 @@ export async function GET(req: NextRequest) {
       const startOfYear = new Date(now.getFullYear(), 0, 1);
       matchCondition = {
         productVendor: vendorId,
-        orderStatus: "delivered",
+        orderStatus: { $in: ["delivered", "returned"] },
         createdAt: { $gte: startOfYear },
       };
       groupId = { $month: "$createdAt" };
@@ -102,7 +126,7 @@ export async function GET(req: NextRequest) {
       const fiveYearsAgo = new Date(now.getFullYear() - 4, 0, 1);
       matchCondition = {
         productVendor: vendorId,
-        orderStatus: "delivered",
+        orderStatus: { $in: ["delivered", "returned"] },
         createdAt: { $gte: fiveYearsAgo },
       };
       groupId = { $year: "$createdAt" };
@@ -112,7 +136,7 @@ export async function GET(req: NextRequest) {
       sevenDaysAgo.setHours(0, 0, 0, 0);
       matchCondition = {
         productVendor: vendorId,
-        orderStatus: "delivered",
+        orderStatus: { $in: ["delivered", "returned"] },
         createdAt: { $gte: sevenDaysAgo },
       };
       groupId = { $dateToString: { format: "%d/%m", date: "$createdAt" } };
@@ -120,7 +144,7 @@ export async function GET(req: NextRequest) {
 
     const revenueRaw = await Order.aggregate([
       { $match: matchCondition },
-      { $group: { _id: groupId, revenue: { $sum: { $add: ["$productsTotal", "$serviceCharge"] } } } },
+      { $group: { _id: groupId, revenue: { $sum: netRevenueExpr } } },
       { $sort: { _id: 1 } },
     ]);
 

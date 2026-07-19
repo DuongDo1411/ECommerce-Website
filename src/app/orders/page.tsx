@@ -1,4 +1,6 @@
 "use client";
+import ReturnModal from "@/app/component/Returns/ReturnModal";
+import { returnStatusLabel } from "@/lib/returns/labels";
 import { motion, AnimatePresence } from "motion/react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -61,7 +63,18 @@ interface IOrder {
     | "shipped"
     | "delivered"
     | "returned"
+    | "delivery_exception"
     | "cancelled";
+  deliveryDate?: string;
+  // Cửa sổ đổi/trả chốt lúc giao hàng, tính từ replacementDays vendor đặt cho sản
+  // phẩm. Hết hạn ⇒ ẩn nút "Trả hàng".
+  returnEligibleUntil?: string;
+  returnWindowDaysSnapshot?: number;
+  returnRequest?: {
+    _id: string;
+    status: string;
+    refund?: { amount?: number; status?: string };
+  };
   address: {
     name: string;
     phone: string;
@@ -116,6 +129,12 @@ const STATUS_CONFIG: Record<
     color: "text-orange-400",
     bg: "bg-orange-500/10",
     border: "border-orange-500/30",
+  },
+  delivery_exception: {
+    label: "Giao không thành công",
+    color: "text-amber-400",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/30",
   },
   cancelled: {
     label: "Đã hủy",
@@ -183,6 +202,7 @@ function OrdersPageContent() {
   const searchParams = useSearchParams();
   const [orders, setOrders] = useState<IOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [detailOrder, setDetailOrder] = useState<IOrder | null>(null);
   const [trackOrder, setTrackOrder] = useState<IOrder | null>(null);
   const [vnpayResult, setVnpayResult] = useState<VnpayResult | null>(null);
@@ -196,14 +216,24 @@ function OrdersPageContent() {
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch("/api/orders");
       if (res.status === 401) {
         router.push("/login");
         return;
       }
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message ?? "Không thể tải danh sách đơn hàng");
+      }
       setOrders(data.orders ?? []);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Không thể tải danh sách đơn hàng",
+      );
     } finally {
       setLoading(false);
     }
@@ -245,6 +275,15 @@ function OrdersPageContent() {
       fetchOrders();
     }
   }, [searchParams, fetchOrders]);
+
+  // Modal chi tiết giữ một bản sao của đơn, nên sau khi refresh danh sách phải đồng bộ
+  // lại — nếu không, vừa gửi yêu cầu trả hàng xong nút vẫn hiện "Trả hàng" và bấm tiếp
+  // sẽ ăn lỗi 409.
+  useEffect(() => {
+    setDetailOrder((prev) =>
+      prev ? (orders.find((o) => o._id === prev._id) ?? prev) : prev,
+    );
+  }, [orders]);
 
   /* ── Derived: unique vendor names ── */
   const vendorOptions = useMemo(() => {
@@ -325,6 +364,27 @@ function OrdersPageContent() {
           <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm">Đang tải đơn hàng...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError && !vnpayResult) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-950 px-4 text-center text-gray-400">
+        <FaExclamationTriangle size={48} className="text-red-400" />
+        <div>
+          <p className="text-lg font-semibold text-white">
+            Không thể tải đơn hàng
+          </p>
+          <p className="mt-1 text-sm text-gray-500">{loadError}</p>
+        </div>
+        <button
+          type="button"
+          onClick={fetchOrders}
+          className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+        >
+          Thử tải lại
+        </button>
       </div>
     );
   }
@@ -817,6 +877,7 @@ function OrdersPageContent() {
                 prev ? { ...prev, orderStatus: "cancelled" } : null,
               );
             }}
+            onReturnChanged={fetchOrders}
           />
         )}
       </AnimatePresence>
@@ -855,10 +916,12 @@ function DetailModal({
   order,
   onClose,
   onCancelled,
+  onReturnChanged,
 }: {
   order: IOrder;
   onClose: () => void;
   onCancelled: (orderId: string) => void;
+  onReturnChanged: () => void;
 }) {
   const st = STATUS_CONFIG[order.orderStatus] ?? STATUS_CONFIG.pending;
   const isDelivered = order.orderStatus === "delivered";
@@ -866,6 +929,20 @@ function DetailModal({
 
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [showReturn, setShowReturn] = useState(false);
+
+  // Cửa sổ đổi/trả: ưu tiên mốc server đã chốt lúc giao (returnEligibleUntil).
+  // Đơn cũ chưa backfill thì suy ra từ deliveryDate + số ngày snapshot.
+  const returnWindowDays = order.returnWindowDaysSnapshot ?? 0;
+  const returnDeadline = order.returnEligibleUntil
+    ? new Date(order.returnEligibleUntil)
+    : order.deliveryDate && returnWindowDays > 0
+      ? new Date(
+          new Date(order.deliveryDate).getTime() +
+            returnWindowDays * 86_400_000,
+        )
+      : null;
+  const canRequestReturn = !!returnDeadline && new Date() <= returnDeadline;
 
   const handleCancel = async () => {
     if (!canUserCancel || cancelling) return;
@@ -1046,15 +1123,36 @@ function DetailModal({
 
           <div className="flex items-center justify-between gap-3">
             {/* Left: action button */}
-            {isDelivered ? (
+            {order.returnRequest ? (
+              /* Đã có yêu cầu → mở lại để theo dõi / khiếu nại / huỷ */
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 whileHover={{ scale: 1.03 }}
+                onClick={() => setShowReturn(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600/20 border border-orange-500/30 text-orange-400 text-sm font-medium hover:bg-orange-600/35 transition-colors"
+              >
+                <FaUndoAlt size={12} />
+                {returnStatusLabel(order.returnRequest.status)}
+              </motion.button>
+            ) : isDelivered && canRequestReturn ? (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.03 }}
+                onClick={() => setShowReturn(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600/20 border border-orange-500/30 text-orange-400 text-sm font-medium hover:bg-orange-600/35 transition-colors"
               >
                 <FaUndoAlt size={12} />
                 Trả hàng
               </motion.button>
+            ) : isDelivered ? (
+              /* Hết hạn hoặc sản phẩm không hỗ trợ đổi/trả — nói rõ lý do thay vì
+                 để nút chết bấm không ăn. */
+              <span className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800 border border-white/10 text-gray-500 text-xs font-medium cursor-not-allowed">
+                <FaUndoAlt size={11} />
+                {returnWindowDays === 0
+                  ? "Không hỗ trợ đổi/trả"
+                  : "Đã hết hạn đổi/trả"}
+              </span>
             ) : order.orderStatus === "cancelled" ? (
               /* Đã hủy — chỉ hiển thị trạng thái */
               <span className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800 border border-white/10 text-gray-500 text-sm font-medium cursor-not-allowed">
@@ -1103,6 +1201,15 @@ function DetailModal({
           </div>
         </div>
       </motion.div>
+
+      {showReturn && (
+        <ReturnModal
+          orderId={order._id}
+          returnRequestId={order.returnRequest?._id}
+          onClose={() => setShowReturn(false)}
+          onDone={onReturnChanged}
+        />
+      )}
     </motion.div>
   );
 }

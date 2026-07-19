@@ -3,9 +3,9 @@ import connectDB from "@/lib/connectDB";
 import {
   getGHNOrderDetail,
   GHNError,
-  mapGhnStatusToOrderStatus,
   mapGhnStatusToVietnamese,
 } from "@/lib/ghn";
+import { applyOutboundOrderEvent } from "@/lib/returns/ghnEvents";
 import Order from "@/model/order.model";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -35,19 +35,25 @@ export async function GET(
 
     const detail = await getGHNOrderDetail(order.ghn.orderCode);
 
-    order.ghn.status = detail.status;
-    order.ghn.statusLog = (detail.log ?? []).map((l) => ({
+    const statusLog = (detail.log ?? []).map((l) => ({
       status: l.status,
       time: new Date(l.updated_date),
     }));
-    const mapped = mapGhnStatusToOrderStatus(detail.status);
-    if (mapped) {
-      order.orderStatus = mapped;
-      if (mapped === "delivered" && order.paymentMethod === "cod") {
-        order.isPaid = true;
-      }
-    }
-    await order.save();
+
+    // Đi qua CÙNG một hàm với webhook thay vì tự gán orderStatus.
+    // Tự gán là bỏ sót hết phần còn lại: deliveryDate (thiếu thì cửa sổ đổi/trả không
+    // tính được, và người mua sẽ không bao giờ mở được yêu cầu trả hàng),
+    // returnEligibleUntil, settlement voucher, và case cho đơn giao hỏng.
+    await applyOutboundOrderEvent({
+      order,
+      status: detail.status,
+      statusLog,
+      time:
+        statusLog.at(-1)?.time instanceof Date &&
+        !Number.isNaN(statusLog.at(-1)?.time.getTime())
+          ? statusLog.at(-1)?.time
+          : new Date(),
+    });
 
     return NextResponse.json(
       {

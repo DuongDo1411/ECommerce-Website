@@ -10,6 +10,7 @@ import {
   markRefundForCancelledOrder,
   releaseBatchIfFullyCancelled,
 } from "@/lib/voucher/lifecycle";
+import { computeReturnEligibleUntil } from "@/lib/returns/policy";
 import { requireRole } from "@/lib/rbac";
 import Order from "@/model/order.model";
 import Product from "@/model/product.model";
@@ -217,6 +218,11 @@ export async function PATCH(
       order.orderStatus = "delivered";
       order.isPaid = true;
       order.deliveryDate = new Date();
+      order.returnEligibleUntil =
+        computeReturnEligibleUntil(
+          order.deliveryDate,
+          order.returnWindowDaysSnapshot ?? 0,
+        ) ?? undefined;
       await order.save();
       await commitBatchIfTerminalWithDelivery(order.checkoutBatchId);
       return NextResponse.json(
@@ -239,11 +245,12 @@ export async function PATCH(
       }
 
       if (order.ghn?.orderCode) {
-        const ok = await cancelGHNOrder(order.ghn.orderCode);
-        if (!ok) {
-          // GHN refused (likely already picked up) — diverge but allow.
+        // Vendor huỷ đơn XUÔI: dù GHN không huỷ được (đã lấy hàng) hay đang trục trặc,
+        // vendor vẫn được huỷ nội bộ — GHN sẽ tự hoàn kiện hàng thừa về. Chỉ ghi log.
+        const outcome = await cancelGHNOrder(order.ghn.orderCode);
+        if (outcome !== "cancelled") {
           console.warn(
-            `[GHN] could not cancel ${order.ghn.orderCode}; cancelling internally anyway`,
+            `[GHN] không huỷ được ${order.ghn.orderCode} (${outcome}); vẫn huỷ nội bộ`,
           );
         }
       }

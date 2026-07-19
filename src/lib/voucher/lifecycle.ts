@@ -13,6 +13,7 @@ type OrderStatus =
   | "shipped"
   | "delivered"
   | "returned"
+  | "delivery_exception"
   | "cancelled";
 
 type VoucherRef = unknown;
@@ -20,6 +21,7 @@ type VoucherRef = unknown;
 type LifecycleOrder = {
   orderStatus: OrderStatus;
   appliedVouchers?: { voucher?: VoucherRef }[];
+  deliveryDate?: Date | null;
 };
 
 type ReservedVoucherRow = {
@@ -75,13 +77,23 @@ function refEndAt(value: unknown) {
 }
 
 function isTerminalOrder(order: LifecycleOrder) {
-  return order.orderStatus === "delivered" || order.orderStatus === "cancelled";
+  return (
+    order.orderStatus === "delivered" ||
+    order.orderStatus === "cancelled" ||
+    order.orderStatus === "returned"
+  );
+}
+
+// Một đơn "từng giao thành công" nếu đang delivered HOẶC đã có deliveryDate —
+// đơn delivered-rồi-returned vẫn tính là đã dùng voucher (không trả lại voucher).
+function orderWasDelivered(order: LifecycleOrder) {
+  return order.orderStatus === "delivered" || !!order.deliveryDate;
 }
 
 function voucherUsedByDeliveredOrder(orders: LifecycleOrder[], voucherId: string) {
   return orders.some(
     (order) =>
-      order.orderStatus === "delivered" &&
+      orderWasDelivered(order) &&
       (order.appliedVouchers ?? []).some(
         (applied) => refToString(applied.voucher) === voucherId,
       ),
@@ -96,7 +108,11 @@ export function getTerminalVoucherSettlement(
   return voucherUsedByDeliveredOrder(orders, voucherId) ? "used" : "release";
 }
 
-async function releaseReservedVoucherRow(row: ReservedVoucherRow, now = new Date()) {
+async function releaseReservedVoucherRow(
+  row: ReservedVoucherRow,
+  now = new Date(),
+  session?: ClientSession,
+) {
   const voucherId = refToString(row.voucher);
   const endAt = refEndAt(row.voucher);
   const nextStatus = endAt && endAt >= now ? "collected" : "expired";
@@ -106,9 +122,10 @@ async function releaseReservedVoucherRow(row: ReservedVoucherRow, now = new Date
       $set: { status: nextStatus },
       $unset: { checkoutBatchId: "", reservedAt: "", txnRef: "" },
     },
+    { session },
   );
   if (updated.modifiedCount === 1 && voucherId) {
-    await releaseVoucherSlot(voucherId);
+    await releaseVoucherSlot(voucherId, session);
   }
 }
 
@@ -220,47 +237,77 @@ export async function reserveQuoteVouchers(params: {
   }
 }
 
-export async function releaseReservedVouchersForBatch(checkoutBatchId: string) {
-  const rows = await UserVoucher.find({
+export async function releaseReservedVouchersForBatch(
+  checkoutBatchId: string,
+  session?: ClientSession,
+) {
+  const query = UserVoucher.find({
     checkoutBatchId,
     status: "reserved",
   }).populate("voucher");
+  if (session) query.session(session);
+  const rows = await query;
 
   const now = new Date();
   for (const row of rows) {
-    await releaseReservedVoucherRow(row as ReservedVoucherRow, now);
+    await releaseReservedVoucherRow(row as ReservedVoucherRow, now, session);
   }
 }
 
 export async function releaseBatchIfFullyCancelled(
   checkoutBatchId?: string,
   finalStatus: "cancelled" | "expired" = "cancelled",
+  session?: ClientSession,
 ) {
   if (!checkoutBatchId) return false;
-  const activeOrders = await Order.countDocuments({
-    checkoutBatchId,
-    orderStatus: { $ne: "cancelled" },
-  });
-  if (activeOrders > 0) return false;
-  await releaseReservedVouchersForBatch(checkoutBatchId);
+  const orderQuery = Order.find({ checkoutBatchId }).select(
+    "orderStatus deliveryDate",
+  );
+  if (session) orderQuery.session(session);
+  const orders = await orderQuery.lean<LifecycleOrder[]>();
+  if (orders.length === 0) return false;
+
+  // Đơn "returned" cũng là terminal → không tính là active, để batch toàn
+  // returned/cancelled vẫn được release voucher còn reserved.
+  const active = orders.filter(
+    (order) =>
+      order.orderStatus !== "cancelled" && order.orderStatus !== "returned",
+  );
+  if (active.length > 0) return false;
+
+  // Batch từng có đơn giao THÀNH CÔNG rồi mới trả hàng thì không phải "hủy sạch":
+  // voucher đã tiêu đúng lúc giao và phải giữ nguyên "used". Nhường việc cho
+  // commitBatchIfTerminalWithDelivery — nếu không, batch bị lật paid → cancelled.
+  if (orders.some(orderWasDelivered)) return false;
+
+  await releaseReservedVouchersForBatch(checkoutBatchId, session);
   await CheckoutBatch.updateOne(
     { checkoutBatchId },
     { $set: { status: finalStatus } },
+    { session },
   );
   return true;
 }
 
-export async function commitBatchIfTerminalWithDelivery(checkoutBatchId?: string) {
+export async function commitBatchIfTerminalWithDelivery(
+  checkoutBatchId?: string,
+  session?: ClientSession,
+) {
   if (!checkoutBatchId) return false;
-  const orders = await Order.find({ checkoutBatchId })
-    .select("orderStatus appliedVouchers")
-    .lean<LifecycleOrder[]>();
+  const orderQuery = Order.find({ checkoutBatchId }).select(
+    "orderStatus appliedVouchers deliveryDate",
+  );
+  if (session) orderQuery.session(session);
+  const orders = await orderQuery.lean<LifecycleOrder[]>();
   if (orders.length === 0 || !orders.every(isTerminalOrder)) return false;
-  if (!orders.some((order) => order.orderStatus === "delivered")) return false;
+  if (!orders.some(orderWasDelivered)) return false;
 
-  const rows = await UserVoucher.find({ checkoutBatchId, status: "reserved" })
-    .populate("voucher")
-    .lean<ReservedVoucherRow[]>();
+  const rowsQuery = UserVoucher.find({
+    checkoutBatchId,
+    status: "reserved",
+  }).populate("voucher");
+  if (session) rowsQuery.session(session);
+  const rows = await rowsQuery.lean<ReservedVoucherRow[]>();
   const now = new Date();
   let settled = false;
 
@@ -275,10 +322,11 @@ export async function commitBatchIfTerminalWithDelivery(checkoutBatchId?: string
           $set: { status: "used", usedAt: now },
           $unset: { checkoutBatchId: "", reservedAt: "", txnRef: "" },
         },
+        { session },
       );
       if (updated.modifiedCount === 1) settled = true;
     } else if (settlement === "release") {
-      await releaseReservedVoucherRow(row, now);
+      await releaseReservedVoucherRow(row, now, session);
       settled = true;
     }
   }
@@ -286,6 +334,7 @@ export async function commitBatchIfTerminalWithDelivery(checkoutBatchId?: string
   const paidBatch = await CheckoutBatch.updateOne(
     { checkoutBatchId },
     { $set: { status: "paid" } },
+    { session },
   );
 
   return settled || paidBatch.modifiedCount === 1;
