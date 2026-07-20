@@ -6,6 +6,8 @@ export default function LoginPage() {
   return (
     <Suspense fallback={<LoginFallback />}>
       <LoginForm
+        allowedRole="user"
+        respectCallbackUrl
         showGoogle
         showRegister
         title="Welcome Back To MultiCart"

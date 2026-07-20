@@ -1,68 +1,48 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
+import Google from "next-auth/providers/google";
 import connectDB from "./lib/connectDB";
 import User from "./model/user.model";
-import bcrypt from "bcryptjs";
-import Google from "next-auth/providers/google";
+import { authorizePortalCredentials } from "./lib/auth/portalCredentials";
+import { prepareGoogleUser } from "./lib/auth/googleUser";
+import { credentialProviderForRole, type LoginRole } from "./lib/roleRoutes";
 
  
+/**
+ * Builds a Credentials provider locked to a single role. The allowed role is
+ * baked into the server config here — it is never read from the client — so a
+ * form can never ask to be authorised as a different role.
+ */
+function portalCredentials(role: LoginRole) {
+  return Credentials({
+    id: credentialProviderForRole(role),
+    credentials: {
+      email: { label: "Email", type: "email" },
+      password: { label: "Password", type: "password" },
+    },
+    authorize: (credentials) => authorizePortalCredentials(credentials, role),
+  });
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
-    Credentials({
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        await connectDB();
-        const email =  credentials.email as string;
-        const password = credentials.password as string;
-        const user = await User.findOne({email});
-        if(!user){
-            throw new Error("User is not found");
-        }
-
-        const isMatch = await bcrypt.compare(password , user.password);
-        if(!isMatch){
-            throw new Error("Invalid password");
-        }
-        return {
-            id: user._id.toString(),
-            email: user.email,
-            name: user.name,
-            role: user.role
-        }
-      },
-    }),
+    portalCredentials("user"),
+    portalCredentials("vendor"),
+    portalCredentials("admin"),
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
-    })
+    }),
   ],
   callbacks:{
-    async signIn({user , account}){
-      if(account?.provider === "google"){
-        await connectDB();
-        let existingUser = await User.findOne({email: user.email});
-        if(!existingUser){
-            existingUser = await User.create({
-            name: user.name,
-            email: user.email,
-            image: user.image,
-            role: "user",
-          })
-        } else if(!existingUser.role) {
-            existingUser.role = "user";
-            if (!existingUser.image && user.image) {
-              existingUser.image = user.image;
-            }
-            await existingUser.save();
-        } else if(!existingUser.image && user.image) {
-            existingUser.image = user.image;
-            await existingUser.save();
+    async signIn({ user, account }) {
+      if (account?.provider === "google") {
+        // Google is a user-only doorway; existing Vendor/Admin accounts are
+        // bounced with a code the login page turns into a friendly toast.
+        const allowed = await prepareGoogleUser(user);
+        if (!allowed) {
+          return "/login?error=RolePortalMismatch";
         }
-        user.id = existingUser._id.toString();
-        user.role = existingUser.role.toString();
       }
       return true;
     },

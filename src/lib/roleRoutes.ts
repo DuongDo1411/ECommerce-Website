@@ -21,3 +21,21 @@ export function safeCallbackPath(raw: string | null | undefined): string | null 
   if (raw.includes("\\")) return null;
   return raw;
 }
+
+/** The three login portals, each backed by its own NextAuth credentials provider. */
+export type LoginRole = "user" | "vendor" | "admin";
+
+const CREDENTIAL_PROVIDER_BY_ROLE: Record<LoginRole, string> = {
+  user: "user-credentials",
+  vendor: "vendor-credentials",
+  admin: "admin-credentials",
+};
+
+/**
+ * Maps a portal role to its dedicated NextAuth Credentials provider id. Shared
+ * by the client (which calls `signIn(...)`) and the server (which registers the
+ * providers under these ids) so the mapping can never drift between the two.
+ */
+export function credentialProviderForRole(role: LoginRole): string {
+  return CREDENTIAL_PROVIDER_BY_ROLE[role];
+}

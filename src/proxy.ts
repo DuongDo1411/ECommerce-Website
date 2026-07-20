@@ -80,6 +80,20 @@ export async function proxy(req: NextRequest) {
   }
 
   if (!session?.user?.id) {
+    // Route unauthenticated visitors to the login portal that matches the area
+    // they were trying to reach, so vendors/admins land on their own portal
+    // instead of the user portal.
+    if (matchesPrefix(pathname, "/admin")) {
+      return NextResponse.redirect(new URL("/admin/login", req.url));
+    }
+
+    if (
+      matchesPrefix(pathname, "/vendor") ||
+      matchesPrefix(pathname, "/addVendorProduct")
+    ) {
+      return NextResponse.redirect(new URL("/vendor/login", req.url));
+    }
+
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set(
       "callbackUrl",

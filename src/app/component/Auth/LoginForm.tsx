@@ -7,13 +7,18 @@ import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import { signIn, signOut, getSession } from 'next-auth/react';
 import { ToastContainer, type ToastData } from '../Toast';
-import { homeForRole, safeCallbackPath } from '@/lib/roleRoutes';
-
-type AllowedRole = "vendor" | "admin";
+import { credentialProviderForRole, homeForRole, safeCallbackPath, type LoginRole } from '@/lib/roleRoutes';
 
 interface LoginFormProps {
-  /** When set, only this role may sign in here; other roles are rejected + signed out. */
-  allowedRole?: AllowedRole;
+  /** Which login portal this form is for. Required — it drives both the
+   *  credentials provider used and the post-sign-in role check. */
+  allowedRole: LoginRole;
+  /**
+   * When true, honour a safe `?callbackUrl=` after a successful sign-in.
+   * Defaults to false so vendor/admin portals always land on their dashboard.
+   * Role-check policy is independent of this redirect policy.
+   */
+  respectCallbackUrl?: boolean;
   showGoogle?: boolean;
   showRegister?: boolean;
   title?: string;
@@ -24,6 +29,7 @@ interface LoginFormProps {
 
 export default function LoginForm({
   allowedRole,
+  respectCallbackUrl = false,
   showGoogle = false,
   showRegister = false,
   title = "Đăng nhập",
@@ -37,7 +43,20 @@ export default function LoginForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<ToastData | null>(null);
+  // Vendor/Admin bounced from Google on the user portal arrive with
+  // `?error=RolePortalMismatch` (set by the `signIn` callback in `@/auth`).
+  // Seed the toast from it on first render via a lazy initializer — not an
+  // effect, so there are no cascading renders — and never surface NextAuth's
+  // raw error codes.
+  const [toast, setToast] = useState<ToastData | null>(() =>
+    searchParams.get("error") === "RolePortalMismatch"
+      ? {
+          message:
+            "Tài khoản Người bán/Quản trị không thể đăng nhập bằng Google tại đây. Vui lòng dùng cổng đăng nhập riêng.",
+          type: "error",
+        }
+      : null,
+  );
 
   const callbackTarget = () =>
     safeCallbackPath(searchParams.get("callbackUrl"));
@@ -46,7 +65,7 @@ export default function LoginForm({
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await signIn("credentials", {
+      const result = await signIn(credentialProviderForRole(allowedRole), {
         email,
         password,
         redirect: false,
@@ -73,19 +92,23 @@ export default function LoginForm({
         return;
       }
 
-      if (allowedRole && role !== allowedRole) {
+      if (role !== allowedRole) {
+        // Defence in depth: the role-scoped provider already rejects a wrong
+        // role server-side, so this only fires on an unexpected/stale session.
+        // Use the same generic message as bad credentials — never reveal
+        // role/account state.
         await signOut({ redirect: false });
         setToast({
-          message: "Tài khoản này không có quyền truy cập cổng đăng nhập này.",
+          message: "Email hoặc mật khẩu không đúng. Vui lòng thử lại.",
           type: "error",
         });
         setLoading(false);
         return;
       }
 
-      const destination = allowedRole
-        ? homeForRole(role)
-        : (callbackTarget() ?? homeForRole(role));
+      const destination = respectCallbackUrl
+        ? (callbackTarget() ?? homeForRole(role))
+        : homeForRole(role);
 
       setToast({ message: "Đăng nhập thành công! Đang chuyển trang...", type: "success" });
       setTimeout(() => router.push(destination), 1200);
@@ -98,7 +121,9 @@ export default function LoginForm({
 
   const handleGoogle = () => {
     // Google accounts are always created as "user"; only offered on the public portal.
-    signIn("google", { redirectTo: callbackTarget() ?? "/" });
+    signIn("google", {
+      redirectTo: respectCallbackUrl ? (callbackTarget() ?? "/") : "/",
+    });
   };
 
   return (

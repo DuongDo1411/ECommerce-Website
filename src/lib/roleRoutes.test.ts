@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { homeForRole, safeCallbackPath } from "./roleRoutes";
+import {
+  credentialProviderForRole,
+  homeForRole,
+  safeCallbackPath,
+} from "./roleRoutes";
 
 describe("homeForRole", () => {
   it("maps admin and vendor to their dashboards", () => {
@@ -33,5 +37,13 @@ describe("safeCallbackPath", () => {
     expect(safeCallbackPath("http://evil.com")).toBeNull();
     expect(safeCallbackPath("/\\evil.com")).toBeNull();
     expect(safeCallbackPath("relative/path")).toBeNull();
+  });
+});
+
+describe("credentialProviderForRole", () => {
+  it("maps each portal role to its dedicated NextAuth provider id", () => {
+    expect(credentialProviderForRole("user")).toBe("user-credentials");
+    expect(credentialProviderForRole("vendor")).toBe("vendor-credentials");
+    expect(credentialProviderForRole("admin")).toBe("admin-credentials");
   });
 });
