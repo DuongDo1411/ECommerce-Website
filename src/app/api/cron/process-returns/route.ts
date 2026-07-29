@@ -2,10 +2,7 @@ import connectDB from "@/lib/connectDB";
 import { cancelGHNOrder } from "@/lib/ghn";
 import { addDays, DEADLINE_DAYS } from "@/lib/returns/policy";
 import { ensureReturnShipment } from "@/lib/returns/shipping";
-import {
-  notifyReturnEvent,
-  type ReturnMailEvent,
-} from "@/lib/returns/mail";
+import type { ReturnMailEvent } from "@/lib/returns/mail";
 import { transitionReturn } from "@/lib/returns/transition";
 import ReturnRequest, { type ReturnStatus } from "@/model/returnRequest.model";
 import { NextRequest, NextResponse } from "next/server";
@@ -23,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 interface SweepResult {
   scanned: number;
   applied: number;
+  errors: number;
 }
 
 async function sweep(
@@ -38,26 +36,31 @@ async function sweep(
     .lean();
 
   let applied = 0;
+  let errors = 0;
   for (const doc of docs) {
-    const res = await transitionReturn({
-      id: doc._id,
-      from,
-      action,
-      role: "system",
-      reason,
-    });
-    if (res.ok) {
-      applied++;
-      if (mailEvent) {
-        await notifyReturnEvent({
-          returnRequestId: doc._id,
-          event: mailEvent,
-          note: reason,
-        });
-      }
+    // Bọc từng document: transitionReturn NAY CÓ THỂ NÉM (nó ghi cả outbox trong cùng
+    // transaction). Một case hỏng không được phép chặn 199 case còn lại — quét theo hạn
+    // mà dừng giữa chừng thì những case phía sau kẹt thêm trọn một chu kỳ cron.
+    try {
+      const res = await transitionReturn({
+        id: doc._id,
+        from,
+        action,
+        role: "system",
+        reason,
+        // Thông báo ghi CÙNG transaction với việc chuyển trạng thái, không gửi rời sau đó.
+        ...(mailEvent ? { mailIntent: { event: mailEvent } } : {}),
+      });
+      if (res.ok) applied++;
+    } catch (error) {
+      errors++;
+      console.error(
+        `[cron process-returns] ${action} lỗi ở ${doc._id}:`,
+        error,
+      );
     }
   }
-  return { scanned: docs.length, applied };
+  return { scanned: docs.length, applied, errors };
 }
 
 async function sweepExpiredShipments(now: Date): Promise<SweepResult> {
@@ -70,42 +73,45 @@ async function sweepExpiredShipments(now: Date): Promise<SweepResult> {
     .lean();
 
   let applied = 0;
+  let errors = 0;
   for (const doc of docs) {
-    const orderCode = doc.shipping?.ghn?.orderCode;
-    if (orderCode) {
-      const cancelled = await cancelGHNOrder(orderCode);
-      // Keep the case open when GHN has already picked up the parcel, and retry
-      // temporary GHN failures on the next cron run.
-      if (cancelled !== "cancelled") continue;
-    }
+    try {
+      const orderCode = doc.shipping?.ghn?.orderCode;
+      if (orderCode) {
+        const cancelled = await cancelGHNOrder(orderCode);
+        // Keep the case open when GHN has already picked up the parcel, and retry
+        // temporary GHN failures on the next cron run.
+        if (cancelled !== "cancelled") continue;
+      }
 
-    const eventTime = new Date();
-    const reason = `Người mua không gửi hàng trong ${DEADLINE_DAYS.shipment} ngày`;
-    const res = await transitionReturn({
-      id: doc._id,
-      from: "awaiting_return_shipment",
-      action: "timeout_shipment",
-      role: "system",
-      reason,
-      set: { "shipping.status": "expired_unshipped" },
-      push: {
-        "shipping.statusLog": {
-          status: "expired_unshipped",
-          time: eventTime,
+      const eventTime = new Date();
+      const reason = `Người mua không gửi hàng trong ${DEADLINE_DAYS.shipment} ngày`;
+      const res = await transitionReturn({
+        id: doc._id,
+        from: "awaiting_return_shipment",
+        action: "timeout_shipment",
+        role: "system",
+        reason,
+        set: { "shipping.status": "expired_unshipped" },
+        push: {
+          "shipping.statusLog": {
+            status: "expired_unshipped",
+            time: eventTime,
+          },
         },
-      },
-    });
-    if (!res.ok) continue;
-
-    applied++;
-    await notifyReturnEvent({
-      returnRequestId: doc._id,
-      event: "expired_unshipped",
-      note: reason,
-    });
+        mailIntent: { event: "expired_unshipped" },
+      });
+      if (res.ok) applied++;
+    } catch (error) {
+      errors++;
+      console.error(
+        `[cron process-returns] timeout_shipment lỗi ở ${doc._id}:`,
+        error,
+      );
+    }
   }
 
-  return { scanned: docs.length, applied };
+  return { scanned: docs.length, applied, errors };
 }
 
 export async function POST(req: NextRequest) {

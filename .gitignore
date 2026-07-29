@@ -35,6 +35,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the committed template must be tracked.
+!.env.example
+
+# local DB backups — never commit (may contain PII / password hashes)
+/backups/
 
 # vercel
 .vercel

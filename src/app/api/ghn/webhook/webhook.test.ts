@@ -23,9 +23,8 @@ vi.mock("@/lib/ghn", async (importActual) => {
     getGHNOrderDetailByClientCode: vi.fn(),
   };
 });
-vi.mock("@/lib/mailer", () => ({
-  sendMail: vi.fn().mockResolvedValue(undefined),
-}));
+// Thông báo giờ chỉ được ghi vào outbox trong cùng transaction với transition; không có gì
+// flush hàng đợi trong test nên không cần chặn tầng gửi.
 
 import { getGHNOrderDetail } from "@/lib/ghn";
 import ReturnRequest from "@/model/returnRequest.model";

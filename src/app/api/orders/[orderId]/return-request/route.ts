@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
+import { enqueueReturnMailIntent } from "@/lib/mail/outbox";
 import { collectEvidence, discardEvidence } from "@/lib/returns/evidence";
-import { notifyReturnEvent } from "@/lib/returns/mail";
 import {
   addDays,
   checkReturnEligibility,
@@ -18,7 +18,7 @@ import {
   ReturnOperationError,
   withReturnTransaction,
 } from "@/lib/returns/transaction";
-import type { ClientSession } from "mongoose";
+import mongoose, { type ClientSession } from "mongoose";
 import { NextRequest, NextResponse } from "next/server";
 
 const REASONS: ReturnReasonCode[] = [
@@ -156,6 +156,11 @@ export async function POST(
       );
     }
 
+    // Sinh NGOÀI transaction: withReturnTransaction có thể chạy lại callback khi Mongo báo
+    // lỗi tạm thời. Id cố định thì dedupeKey cũng cố định, nên lần chạy lại không đẻ thêm
+    // một job mail thứ hai cho cùng một yêu cầu.
+    const historyEntryId = new mongoose.Types.ObjectId();
+
     let created;
     try {
       created = await withReturnTransaction(async (dbSession) => {
@@ -211,6 +216,8 @@ export async function POST(
               },
               history: [
                 {
+                  // Sinh tường minh để dedupeKey của mail trỏ được vào đúng dòng history.
+                  _id: historyEntryId,
                   actor: userId,
                   role: "buyer",
                   action: "create_request",
@@ -232,18 +239,27 @@ export async function POST(
           txOrder.returnPolicySource = "legacy_fallback";
         }
         await txOrder.save({ session: dbSession });
+
+        // Thông báo cho người bán ghi CÙNG transaction. Đây là điểm khác bản cũ: trước
+        // đây mail gửi sau khi commit và nuốt lỗi, nên có thể tồn tại một yêu cầu trả hàng
+        // mà người bán không hề biết — và đồng hồ 3 ngày thì vẫn chạy.
+        await enqueueReturnMailIntent(
+          {
+            returnRequestId: createdDoc._id,
+            event: "requested",
+            statusAtEvent: "requested",
+            historyEntryId,
+            dedupeKey: `return/${createdDoc._id}/${historyEntryId}/requested`,
+          },
+          { session: dbSession },
+        );
+
         return createdDoc;
       });
     } catch (error) {
       await discardEvidence(evidence);
       throw error;
     }
-
-    // Sau khi đã ghi xong: báo vendor. Mail hỏng không được làm hỏng yêu cầu đã tạo.
-    await notifyReturnEvent({
-      returnRequestId: created._id,
-      event: "requested",
-    });
 
     return NextResponse.json(
       {

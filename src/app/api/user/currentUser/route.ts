@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
+import { toCurrentUserDTO } from "@/lib/dto";
 import User from "@/model/user.model";
 import { NextResponse } from "next/server";
 
@@ -10,14 +11,17 @@ export async function GET() {
     if (!session?.user?.email) {
       return NextResponse.json({ user: null }, { status: 200 });
     }
-    const user = await User.findOne({ email: session.user.email }).lean();
+    const user = await User.findOne({ email: session.user.email })
+      .select("+password")
+      .lean();
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 400 });
     }
 
-    const { password, ...safeUser } = user;
+    const hasPassword =
+      typeof user.password === "string" && user.password.length > 0;
     return NextResponse.json(
-      { user: { ...safeUser, hasPassword: !!password } },
+      { user: toCurrentUserDTO(user, hasPassword) },
       { status: 200 },
     );
   } catch (error) {

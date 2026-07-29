@@ -1,6 +1,5 @@
 import connectDB from "@/lib/connectDB";
 import { requireRole } from "@/lib/rbac";
-import { notifyReturnEvent } from "@/lib/returns/mail";
 import {
   transitionErrorResponse,
   transitionReturn,
@@ -114,6 +113,14 @@ export async function PATCH(
         reason: note || undefined,
         set,
         session: dbSession,
+        // dedupeKey do transitionReturn dựng từ historyEntryId, nên hoàn tiền hỏng nhiều
+        // lần vẫn ra nhiều khoá khác nhau — người mua được báo đủ mọi lần thử, không bị
+        // gộp thành một.
+        ...(action === "mark_processed"
+          ? { mailIntent: { event: "refunded" as const } }
+          : action === "mark_failed"
+            ? { mailIntent: { event: "refund_failed" as const } }
+            : {}),
       });
       if (result.ok) {
         order.refundStatus = orderRefundStatus;
@@ -128,14 +135,6 @@ export async function PATCH(
         { message: mapped.message },
         { status: mapped.status },
       );
-    }
-
-    if (action === "mark_processed" || action === "mark_failed") {
-      await notifyReturnEvent({
-        returnRequestId: outcome.docId,
-        event: action === "mark_processed" ? "refunded" : "refund_failed",
-        note: note || undefined,
-      });
     }
 
     return NextResponse.json(

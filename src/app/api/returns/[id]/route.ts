@@ -2,7 +2,6 @@ import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import { cancelGHNOrder } from "@/lib/ghn";
 import { collectEvidence, discardEvidence } from "@/lib/returns/evidence";
-import { notifyReturnEvent } from "@/lib/returns/mail";
 import {
   availableActionsFor,
   canConfirmReadyForPickup,
@@ -358,6 +357,11 @@ export async function PATCH(
         actorId: userId,
         reason: reason || undefined,
         set,
+        // Khiếu nại là thứ duy nhất ở đây sinh thông báo (đẩy lên trọng tài). Ghi cùng
+        // transaction để không có case leo thang mà admin không hay.
+        ...(action === "appeal"
+          ? { mailIntent: { event: "escalated" as const } }
+          : {}),
         escalation:
           action === "appeal"
             ? {
@@ -410,14 +414,6 @@ export async function PATCH(
         { message: mapped.message },
         { status: mapped.status },
       );
-    }
-
-    if (action === "appeal") {
-      await notifyReturnEvent({
-        returnRequestId: doc._id,
-        event: "escalated",
-        note: reason,
-      });
     }
 
     return NextResponse.json(

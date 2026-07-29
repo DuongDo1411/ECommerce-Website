@@ -10,6 +10,7 @@ import React, { useEffect, useState } from "react";
 import {
   AiOutlineArrowLeft,
   AiOutlineLock,
+  AiOutlineSafetyCertificate,
   AiOutlineUser,
 } from "react-icons/ai";
 import { FaTicketAlt } from "react-icons/fa";
@@ -18,10 +19,11 @@ import { useDispatch, useSelector } from "react-redux";
 import { ClipLoader } from "react-spinners";
 import PasswordTab from "./PasswordTab";
 import ProfileSettingsTab from "./ProfileSettingsTab";
+import SecurityTab from "./SecurityTab";
 import ShopSettingsTab from "./ShopSettingsTab";
 import VoucherWalletTab from "./VoucherWalletTab";
 
-type ProfileTab = "profile" | "shop" | "password" | "vouchers";
+type ProfileTab = "profile" | "shop" | "password" | "security" | "vouchers";
 type GenderValue = "male" | "female" | "";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -138,6 +140,11 @@ function Profile() {
       : []),
     { key: "vouchers" as const, label: "Ví Voucher", Icon: FaTicketAlt },
     { key: "password" as const, label: "Mật khẩu", Icon: AiOutlineLock },
+    {
+      key: "security" as const,
+      label: "Bảo mật",
+      Icon: AiOutlineSafetyCertificate,
+    },
   ];
 
   return (
@@ -186,6 +193,16 @@ function Profile() {
                   );
                 })}
               </div>
+
+              {user.role === "user" && (
+                <button
+                  onClick={() => router.push("/become-vendor")}
+                  className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-200 text-sm font-semibold hover:bg-emerald-500/20 transition-all"
+                >
+                  <FaShop size={16} />
+                  Mở shop bán hàng
+                </button>
+              )}
             </aside>
 
             <motion.main
@@ -225,6 +242,8 @@ function Profile() {
               )}
 
               {activeTab === "password" && <PasswordTab user={user} />}
+
+              {activeTab === "security" && <SecurityTab user={user} />}
 
               {activeTab === "vouchers" && <VoucherWalletTab />}
             </motion.main>

@@ -7,12 +7,10 @@
 
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-// Email best-effort — chặn không cho gọi SMTP thật trong test.
-vi.mock("@/lib/mailer", () => ({
-  sendMail: vi.fn().mockResolvedValue(undefined),
-}));
+// Không cần mock mailer nữa: thông báo giờ chỉ được GHI vào outbox trong cùng transaction
+// với transition, và không có gì flush hàng đợi trong test — nên không phát sinh gửi thật.
 
 import Order from "@/model/order.model";
 import Product from "@/model/product.model";

@@ -4,7 +4,6 @@ import {
   finalizeReturnedOrder,
   StockRestoreError,
 } from "@/lib/returns/lifecycle";
-import { notifyReturnEvent } from "@/lib/returns/mail";
 import {
   addDays,
   availableActionsFor,
@@ -213,6 +212,15 @@ export async function PATCH(
         }
       }
 
+      const mailEvent =
+        action === "reject"
+          ? "rejected"
+          : action === "approve_return"
+            ? "approved_return"
+            : action === "resolve_no_refund"
+              ? "resolved_no_refund"
+              : "refund_pending";
+
       const result = await transitionReturn({
         id: doc._id,
         from: doc.status,
@@ -222,6 +230,15 @@ export async function PATCH(
         reason,
         set,
         session: dbSession,
+        mailIntent: {
+          event: mailEvent,
+          // ensureReturnShipment() chạy SAU commit, nên lúc này chưa có mã vận đơn. Hoãn
+          // 30 giây để mail duyệt trả hàng cầm theo được mã, thay vì bắt người mua tự vào
+          // web tra. Trễ nửa phút đổi lấy một bức mail dùng được là đáng.
+          ...(action === "approve_return"
+            ? { notBefore: new Date(Date.now() + 30_000) }
+            : {}),
+        },
       });
       if (!result.ok) return { result, breakdown, docId: doc._id };
 
@@ -265,20 +282,6 @@ export async function PATCH(
       action === "approve_return"
         ? await ensureReturnShipment(outcome.docId)
         : null;
-    const mailEvent =
-      action === "reject"
-        ? "rejected"
-        : action === "approve_return"
-          ? "approved_return"
-          : action === "resolve_no_refund"
-            ? "resolved_no_refund"
-            : "refund_pending";
-    await notifyReturnEvent({
-      returnRequestId: outcome.docId,
-      event: mailEvent,
-      note: reason,
-    });
-
     return NextResponse.json(
       {
         message: "Đã ghi nhận phán quyết",

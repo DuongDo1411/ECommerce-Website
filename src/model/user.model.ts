@@ -5,6 +5,10 @@ export interface IUser {
   name?: string;
   password?: string;
   email?: string;
+  emailNormalized?: string;
+  emailVerifiedAt?: Date;
+  sessionVersion?: number;
+  twoFactorEnabled?: boolean;
   phone?: string;
   image?: string;
   gender?: "male" | "female";
@@ -79,8 +83,25 @@ const userSchema = new mongoose.Schema<IUser>(
       required: true,
       unique: true,
     },
+    emailNormalized: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    emailVerifiedAt: {
+      type: Date,
+    },
+    sessionVersion: {
+      type: Number,
+      default: 0,
+    },
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
+    },
     password: {
       type: String,
+      select: false,
     },
     image: {
       type: String,

@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { homeForRole } from "@/lib/roleRoutes";
+import { isCrossSiteRequest } from "@/lib/security/csrf";
 import { NextRequest, NextResponse } from "next/server";
 
 const PUBLIC_PAGE_PREFIXES = [
@@ -17,12 +18,33 @@ const PUBLIC_API_PREFIXES = [
   "/api/vendor/AllVendor",
 ];
 
+// Liệt kê từng đường dẫn CHÍNH XÁC, không dùng tiền tố: người gọi ở đây là máy (provider
+// hoặc scheduler) nên không có session, nhưng mỗi route tự xác thực bằng chữ ký hoặc secret
+// riêng. Mở theo tiền tố "/api/webhooks" hay "/api/cron" là mở luôn cho cả route chưa tồn
+// tại, và route thêm sau này sẽ vô tình thành public mà không ai nhận ra.
 const PUBLIC_API_EXACT = [
   "/api/admin/check-admin",
   "/api/ghn/webhook",
   "/api/orders/vnpay/ipn",
   "/api/user/currentUser",
   "/api/cron/release-stale-vnpay",
+  // Resend gọi tới; route tự verify chữ ký Standard Webhooks bằng RESEND_WEBHOOK_SECRET.
+  "/api/webhooks/resend",
+  // Scheduler ngoài gọi tới; route tự đối chiếu header x-cron-secret với CRON_SECRET.
+  "/api/cron/flush-email-outbox",
+];
+
+// Origin-less integrations authenticate with their own signature/secret and
+// legitimately arrive without a browser Origin header, so the CSRF guard skips
+// them. Everything else that mutates must carry a same-site Origin.
+const CSRF_EXEMPT_PREFIXES = [
+  "/api/auth/callback",
+  "/api/ghn/webhook",
+  "/api/orders/vnpay/ipn",
+  "/api/cron",
+  // Resend POST tới đây không kèm Origin. Bỏ qua CSRF là an toàn vì thứ bảo vệ route này
+  // là chữ ký HMAC trên body — mạnh hơn Origin, và Origin thì webhook không thể có.
+  "/api/webhooks/resend",
 ];
 
 const AUTHENTICATED_PAGE_PREFIXES = [
@@ -41,6 +63,9 @@ const isPublicApi = (pathname: string) =>
   PUBLIC_API_EXACT.includes(pathname) ||
   PUBLIC_API_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
 
+const isCsrfExempt = (pathname: string) =>
+  CSRF_EXEMPT_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
+
 const isPublicPage = (pathname: string) =>
   PUBLIC_PAGE_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
 
@@ -53,6 +78,15 @@ const forbiddenApi = () =>
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isApi = pathname.startsWith("/api/");
+
+  // CSRF: reject cross-site mutations before any routing/auth work, including on
+  // public API routes (register/login) so an attacker's page can't drive them.
+  if (isApi && !isCsrfExempt(pathname) && isCrossSiteRequest(req)) {
+    return NextResponse.json(
+      { message: "Yêu cầu bị chặn (cross-site)." },
+      { status: 403 },
+    );
+  }
 
   if (isApi && isPublicApi(pathname)) {
     return NextResponse.next();

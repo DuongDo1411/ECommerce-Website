@@ -1,17 +1,47 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google";
-import connectDB from "./lib/connectDB";
-import User from "./model/user.model";
+import { headers } from "next/headers";
 import { authorizePortalCredentials } from "./lib/auth/portalCredentials";
+import { consumeGrant } from "./lib/auth/loginChallenge";
 import { prepareGoogleUser } from "./lib/auth/googleUser";
+import { applySessionState } from "./lib/auth/sessionToken";
+import { hashDeviceId, readDeviceIdFromRequest } from "./lib/security/device";
+import { recordLoginActivity } from "./lib/security/loginActivity";
+import { clientIp } from "./lib/security/rateLimit";
 import { credentialProviderForRole, type LoginRole } from "./lib/roleRoutes";
 
- 
 /**
- * Builds a Credentials provider locked to a single role. The allowed role is
- * baked into the server config here — it is never read from the client — so a
- * form can never ask to be authorised as a different role.
+ * User/Vendor portal: the form never sends the password to NextAuth. It first
+ * runs the `/api/auth/login/initiate` → `verify-otp` handshake and hands us a
+ * one-time `loginGrant`, which we trade for a session here. The grant is bound
+ * to the device cookie so 2FA/trusted-device policy is enforced server-side.
+ */
+function portalGrantCredentials(role: LoginRole) {
+  return Credentials({
+    id: credentialProviderForRole(role),
+    credentials: {
+      loginGrant: { label: "Login grant", type: "text" },
+    },
+    authorize: async (credentials, request) => {
+      const rawGrant = credentials?.loginGrant;
+      if (typeof rawGrant !== "string") return null;
+      const deviceId = readDeviceIdFromRequest(request);
+      if (!deviceId) return null;
+      return consumeGrant({
+        rawGrant,
+        expectedRole: role,
+        deviceIdHash: hashDeviceId(deviceId),
+        userAgent: request.headers.get("user-agent"),
+      });
+    },
+  });
+}
+
+/**
+ * Admin portal: plain email/password, no OTP / 2FA / trusted-device. Admin is
+ * intentionally excluded from the 2FA programme. The allowed role is baked in
+ * server-side so a form can never ask to be authorised as a different role.
  */
 function portalCredentials(role: LoginRole) {
   return Credentials({
@@ -20,14 +50,15 @@ function portalCredentials(role: LoginRole) {
       email: { label: "Email", type: "email" },
       password: { label: "Password", type: "password" },
     },
-    authorize: (credentials) => authorizePortalCredentials(credentials, role),
+    authorize: (credentials, request) =>
+      authorizePortalCredentials(credentials, role, request),
   });
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
-    portalCredentials("user"),
-    portalCredentials("vendor"),
+    portalGrantCredentials("user"),
+    portalGrantCredentials("vendor"),
     portalCredentials("admin"),
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
@@ -43,29 +74,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!allowed) {
           return "/login?error=RolePortalMismatch";
         }
+        // Audit the accepted Google sign-in (best-effort; never blocks login).
+        try {
+          const h = await headers();
+          recordLoginActivity({
+            userId: String(user.id),
+            success: true,
+            ip: clientIp(h as unknown as Headers) ?? "unknown",
+            userAgent: h.get("user-agent"),
+            deviceIdHash: "",
+          });
+        } catch {
+          // headers() unavailable or logging failed — ignore.
+        }
       }
       return true;
     },
-    async jwt({token , user}){
-        if(user){
-            token.id = user.id;
-            token.email = user.email;
-            token.name = user.name;
-            token.role = user.role;
-        }
-        if (token.id) {
-          await connectDB();
-          const freshUser = await User.findById(token.id).select(
-            "email name role",
-          );
-
-          if (freshUser) {
-            token.email = freshUser.email;
-            token.name = freshUser.name;
-            token.role = freshUser.role;
-          }
-        }
-        return token;
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      // Refreshes email/name/role from the DB and enforces sessionVersion
+      // revocation. Returning null (stale/deleted/wrong version) drops the
+      // session — Auth.js reads that as "no session".
+      return applySessionState(token, Boolean(user));
     },
     session({session , token}){
         if(session.user){

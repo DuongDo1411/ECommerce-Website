@@ -1,10 +1,16 @@
 // Email thông báo cho case hoàn trả.
 //
-// BEST-EFFORT: gọi SAU khi dữ liệu đã ghi xong, và KHÔNG BAO GIỜ ném lỗi ra ngoài.
-// Hộp mail đầy hay Gmail chặn cũng không được phép làm hỏng một quyết định đã chốt —
-// mất mail thì gửi lại được, còn rollback một case đã duyệt thì không.
+// renderReturnMail() chỉ DỰNG nội dung, không gửi. Việc gửi do outbox lo: ý định gửi mail
+// được ghi cùng transaction với transition, nên hết cảnh "quyết định đã chốt mà thông báo
+// bốc hơi" — thứ mà bản cũ đành chấp nhận bằng cách nuốt lỗi.
+//
+// Hai kiểu "hỏng" mang ý nghĩa khác nhau với worker, đừng trộn:
+//   - trả null  → không có gì để gửi (thiếu người nhận, case đã xoá) = hỏng vĩnh viễn.
+//   - ném lỗi   → đọc dữ liệu trục trặc = hỏng nhất thời, đáng thử lại.
+// Vì vậy KHÔNG bọc try/catch nuốt lỗi quanh phần đọc DB trong renderReturnMail.
 
-import { sendMail } from "@/lib/mailer";
+import type { MailMessage } from "@/lib/mail/types";
+import { canonicalOrigin } from "@/lib/security/origins";
 import "@/model/user.model";
 import ReturnRequest from "@/model/returnRequest.model";
 import { returnReasonLabel, returnStatusLabel } from "./labels";
@@ -48,7 +54,10 @@ const dateTime = (d?: Date | string | null) =>
       })
     : "";
 
-const baseUrl = () => process.env.NEXTAUTH_URL ?? "";
+// Dự án dùng NextAuth v5 → biến là AUTH_URL, KHÔNG phải NEXTAUTH_URL của v4. Đọc sai tên
+// thì baseUrl() rỗng và layout() lặng lẽ bỏ luôn nút CTA — mail vẫn gửi, vẫn đúng nội dung,
+// chỉ thiếu mất đường dẫn hành động, nên không ai phát hiện ra.
+const baseUrl = () => canonicalOrigin() ?? "";
 
 function layout(
   title: string,
@@ -71,26 +80,31 @@ function layout(
     </div>`;
 }
 
-interface MailPlan {
-  to: string;
-  subject: string;
-  html: string;
+type MailPlan = MailMessage;
+
+/** Ý định gửi mail đã ghi trong outbox, dựng thành nội dung ở thời điểm sắp gửi. */
+export interface ReturnMailIntent {
+  returnRequestId: unknown;
+  event: ReturnMailEvent | string;
+  note?: string;
+  /** Trạng thái TẠI THỜI ĐIỂM sự kiện — xem giải thích ở chỗ statusLine bên dưới. */
+  statusAtEvent?: string;
 }
 
 /**
- * Gửi thông báo cho đúng người theo sự kiện. Trả về void và nuốt mọi lỗi.
+ * Dựng nội dung mail cho một sự kiện. Trả null nếu không có ai để gửi.
+ *
+ * KHÔNG nuốt lỗi: worker cần phân biệt "không có gì để gửi" với "đọc DB hỏng".
  */
-export async function notifyReturnEvent(params: {
-  returnRequestId: unknown;
-  event: ReturnMailEvent;
-  note?: string;
-}): Promise<void> {
-  try {
+export async function renderReturnMail(
+  params: ReturnMailIntent,
+): Promise<MailPlan | null> {
+  {
     const doc = await ReturnRequest.findById(params.returnRequestId)
       .populate("buyer", "name email")
       .populate("vendor", "name email shopName")
       .lean();
-    if (!doc) return;
+    if (!doc) return null;
 
     const buyer = doc.buyer as { name?: string; email?: string } | undefined;
     const vendor = doc.vendor as
@@ -100,7 +114,13 @@ export async function notifyReturnEvent(params: {
     // orderRef suy từ ObjectId nên vốn đã an toàn, nhưng escape hết cho nhất quán —
     // để sau này không ai phải đoán chỗ nào đã escape chỗ nào chưa.
     const orderRef = esc(String(doc.order).slice(-8).toUpperCase());
-    const statusLine = `<p><b>Trạng thái:</b> ${esc(returnStatusLabel(doc.status))}</p>`;
+    // Ưu tiên trạng thái lúc SINH RA sự kiện, không phải trạng thái hiện tại. Vì mail được
+    // dựng lúc sắp gửi (có thể vài phút sau), case có thể đã đi tiếp — báo trạng thái mới
+    // cho một sự kiện cũ là sai lệch, nhất là với mail "đã bị từ chối" gửi khi case vừa
+    // được đẩy lên trọng tài.
+    const statusLine = `<p><b>Trạng thái:</b> ${esc(
+      returnStatusLabel(params.statusAtEvent ?? doc.status),
+    )}</p>`;
     const reasonLine = `<p><b>Lý do:</b> ${esc(returnReasonLabel(doc.reasonCode))}</p>`;
     const noteLine = params.note
       ? `<p><b>Ghi chú:</b> ${esc(params.note)}</p>`
@@ -316,10 +336,6 @@ export async function notifyReturnEvent(params: {
       }
     })();
 
-    if (!plan) return;
-    await sendMail(plan);
-  } catch (error) {
-    // Nuốt lỗi có chủ đích: dữ liệu đã ghi xong, mail hỏng không được phép lan ra.
-    console.error("[returns/mail] gửi thông báo thất bại:", error);
+    return plan;
   }
 }

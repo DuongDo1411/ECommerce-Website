@@ -11,7 +11,7 @@ export default function VendorLoginPage() {
         title="Đăng nhập Người bán"
         subtitle="Cổng dành cho chủ shop"
         registerLabel="Đăng ký mở shop"
-        registerHref="/register"
+        registerHref="/register?intent=vendor"
       />
     </Suspense>
   )

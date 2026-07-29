@@ -3,7 +3,6 @@ import { commitBatchIfTerminalWithDelivery } from "@/lib/voucher/lifecycle";
 import Order, { type IOrder } from "@/model/order.model";
 import ReturnRequest, { type ReturnStatus } from "@/model/returnRequest.model";
 import type { ClientSession, HydratedDocument } from "mongoose";
-import { notifyReturnEvent } from "./mail";
 import { addDays, computeReturnEligibleUntil, DEADLINE_DAYS } from "./policy";
 import { withReturnTransaction } from "./transaction";
 import { transitionReturn } from "./transition";
@@ -68,6 +67,8 @@ export async function applyReturnShipmentEvent(params: {
       reason: `GHN: ${status}`,
       set: { "shipping.status": status },
       push: shippingLog(status, time),
+      // → return_in_transit: báo người mua hàng đang trên đường về người bán.
+      mailIntent: { event: "picked_up" },
     });
   } else if (status === "delivered") {
     const commonSet = {
@@ -88,6 +89,8 @@ export async function applyReturnShipmentEvent(params: {
         set: commonSet,
         push: shippingLog(status, time),
         unset: ["escalation"],
+        // → inspection_pending: người bán phải kiểm định.
+        mailIntent: { event: "arrived_for_inspection" },
       });
     } else if (
       current === "awaiting_return_shipment" ||
@@ -101,6 +104,8 @@ export async function applyReturnShipmentEvent(params: {
         reason: "GHN: hàng hoàn đã tới kho người bán",
         set: commonSet,
         push: shippingLog(status, time),
+        // → inspection_pending: người bán phải kiểm định.
+        mailIntent: { event: "arrived_for_inspection" },
       });
     } else {
       return { applied: false, status: current, note: "out_of_order" };
@@ -115,6 +120,8 @@ export async function applyReturnShipmentEvent(params: {
         reason: `GHN: ${status}`,
         set: { "shipping.status": status },
         push: shippingLog(status, time),
+        // → escalated: sàn phải phân xử.
+        mailIntent: { event: "escalated", note: `GHN: ${status}` },
       });
     } else {
       return { applied: false, status: current, note: "out_of_order" };
@@ -138,25 +145,10 @@ export async function applyReturnShipmentEvent(params: {
     }
   }
 
+  // Thông báo không còn phát ở đây: mỗi nhánh transitionReturn phía trên đã mang sẵn
+  // mailIntent, nên mail được ghi CÙNG transaction với việc đổi trạng thái. Nhánh
+  // carrier_cancelled (→ cancelled_by_buyer) vốn không gửi mail nào, giữ nguyên như vậy.
   if (result?.ok) {
-    if (result.to === "inspection_pending") {
-      await notifyReturnEvent({
-        returnRequestId: doc._id,
-        event: "arrived_for_inspection",
-      });
-    } else if (result.to === "escalated") {
-      await notifyReturnEvent({
-        returnRequestId: doc._id,
-        event: "escalated",
-        note: `GHN: ${status}`,
-      });
-    } else if (result.to === "return_in_transit") {
-      // GHN đã lấy hàng (carrier_pickup): báo buyer hàng đang trên đường về người bán.
-      await notifyReturnEvent({
-        returnRequestId: doc._id,
-        event: "picked_up",
-      });
-    }
     return { applied: true, status: result.to };
   }
   if (result && !result.ok) {

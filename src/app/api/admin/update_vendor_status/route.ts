@@ -1,45 +1,63 @@
 import connectDB from "@/lib/connectDB";
 import { requireRole } from "@/lib/rbac";
 import User from "@/model/user.model";
+import mongoose from "mongoose";
 import { NextRequest, NextResponse } from "next/server";
 
+const STATUSES = new Set(["approved", "rejected"]);
 
 export async function POST(req: NextRequest) {
     try {
         await connectDB();
         const authz = await requireRole(["admin"], { mode: "api" });
         if (authz instanceof NextResponse) return authz;
-        const {vendorId , status , rejectedReason} = await req.json()
-        if(!vendorId || !status){
+
+        const { vendorId, status, rejectedReason } = await req.json();
+        if (
+            typeof vendorId !== "string" ||
+            !mongoose.isValidObjectId(vendorId) ||
+            !STATUSES.has(status)
+        ) {
             return NextResponse.json(
-                {message:"Vendor ID and status are required"},
-                {status:400}
-            ) 
-        }
-        
-        const vendor = await User.findById(vendorId);
-        if(!vendor){
-            return NextResponse.json({message:"Vendor not found"},{status:404})
+                { message: "Vendor ID và trạng thái (approved|rejected) là bắt buộc" },
+                { status: 400 },
+            );
         }
 
-        if(status === "approved"){
+        // Only act on accounts that are actually vendors — never flip role here.
+        const vendor = await User.findOne({ _id: vendorId, role: "vendor" });
+        if (!vendor) {
+            return NextResponse.json({ message: "Vendor not found" }, { status: 404 });
+        }
+
+        if (status === "approved") {
             vendor.verificationStatus = "approved";
             vendor.isApproved = true;
             vendor.approvedAt = new Date();
             vendor.rejectedReason = undefined;
-        }
-
-        if(status === "rejected"){
+        } else {
             vendor.verificationStatus = "rejected";
             vendor.isApproved = false;
-            vendor.rejectedReason = rejectedReason || "Your application has been rejected by the admin. Please contact admin for more information";
+            vendor.rejectedReason =
+                (typeof rejectedReason === "string" && rejectedReason.trim()) ||
+                "Hồ sơ của bạn đã bị từ chối. Vui lòng liên hệ quản trị viên.";
         }
 
         await vendor.save();
-        
-        return NextResponse.json({message:"Vendor status updated successfully" , vendor},{status:200})
 
+        // Narrow response — never serialize the full user document.
+        return NextResponse.json(
+            {
+                message: "Cập nhật trạng thái vendor thành công",
+                vendorId: String(vendor._id),
+                status: vendor.verificationStatus,
+            },
+            { status: 200 },
+        );
     } catch (error) {
-        return NextResponse.json({message:`Vendor status update error ${error}`},{status:500})
+        return NextResponse.json(
+            { message: `Vendor status update error ${error}` },
+            { status: 500 },
+        );
     }
 }

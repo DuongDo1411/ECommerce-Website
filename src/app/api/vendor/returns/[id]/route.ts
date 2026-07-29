@@ -5,7 +5,6 @@ import {
   finalizeReturnedOrder,
   StockRestoreError,
 } from "@/lib/returns/lifecycle";
-import { notifyReturnEvent } from "@/lib/returns/mail";
 import {
   addDays,
   availableActionsFor,
@@ -226,6 +225,7 @@ export async function PATCH(
           actorId: vendorId,
           reason,
           set,
+          mailIntent: { event: "rejected" },
         });
       } catch (error) {
         await discardEvidence(evidence);
@@ -239,11 +239,6 @@ export async function PATCH(
           { status: mapped.status },
         );
       }
-      await notifyReturnEvent({
-        returnRequestId: doc._id,
-        event: "rejected",
-        note: reason,
-      });
       return NextResponse.json(
         { message: "Đã từ chối yêu cầu", status: result.to },
         { status: 200 },
@@ -331,6 +326,13 @@ export async function PATCH(
         actorId: vendorId,
         reason: reason || undefined,
         set,
+        mailIntent: {
+          event: "approved_return",
+          // Hoãn 30 giây: ensureReturnShipment() chạy ngay dưới đây, mail cần cầm theo mã
+          // vận đơn. Bản cũ gửi sau khi có mã nhưng ngoài transaction — GHN lỗi hoặc
+          // process chết là mất luôn thông báo, dù quyết định duyệt đã ghi.
+          notBefore: new Date(Date.now() + 30_000),
+        },
       });
       if (!result.ok) {
         const mapped = transitionErrorResponse(result.error);
@@ -344,11 +346,6 @@ export async function PATCH(
       // Case nằm lại ở awaiting_return_shipment với shipping.status=creation_failed,
       // vendor bấm thử lại hoặc cron tự tạo bù.
       const shipment = await ensureReturnShipment(doc._id);
-      // Gửi mail SAU khi có vận đơn để buyer nhận được kèm mã vận đơn.
-      await notifyReturnEvent({
-        returnRequestId: doc._id,
-        event: "approved_return",
-      });
       return NextResponse.json(
         {
           message: shipment.ok
@@ -395,6 +392,9 @@ export async function PATCH(
           reason: reason || undefined,
           set: txSet,
           session: dbSession,
+          mailIntent: {
+            event: noRefund ? "resolved_no_refund" : "approved_refund_only",
+          },
         });
         if (result.ok && !noRefund) {
           txOrder.returnedAmount = breakdown.amount;
@@ -411,10 +411,6 @@ export async function PATCH(
           { status: mapped.status },
         );
       }
-      await notifyReturnEvent({
-        returnRequestId: doc._id,
-        event: outcome.noRefund ? "resolved_no_refund" : "approved_refund_only",
-      });
       return NextResponse.json(
         {
           message: outcome.noRefund
@@ -492,6 +488,9 @@ export async function PATCH(
           reason: reason || undefined,
           set: txSet,
           session: dbSession,
+          mailIntent: {
+            event: noRefund ? "resolved_no_refund" : "refund_pending",
+          },
         });
         if (result.ok) {
           await finalizeReturnedOrder(
@@ -514,11 +513,6 @@ export async function PATCH(
           { status: mapped.status },
         );
       }
-
-      await notifyReturnEvent({
-        returnRequestId: doc._id,
-        event: outcome.noRefund ? "resolved_no_refund" : "refund_pending",
-      });
 
       return NextResponse.json(
         {

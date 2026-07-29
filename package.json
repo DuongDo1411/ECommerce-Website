@@ -2,6 +2,9 @@
   "name": "ecommerce_shop",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "build": "next build",
@@ -18,7 +21,7 @@
     "cross-env": "^10.1.0",
     "mongoose": "^9.3.3",
     "motion": "^12.38.0",
-    "next": "16.2.1",
+    "next": "16.2.11",
     "next-auth": "^5.0.0-beta.30",
     "nodemailer": "^7.0.13",
     "react": "19.2.4",
@@ -27,8 +30,10 @@
     "react-redux": "^9.2.0",
     "react-spinners": "^0.17.0",
     "recharts": "^3.8.1",
+    "resend": "^6.18.0",
     "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "tsx": "^4.22.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -41,7 +46,6 @@
     "eslint-config-next": "16.2.1",
     "mongodb-memory-server": "^11.2.0",
     "tailwindcss": "^4",
-    "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.9"
   }

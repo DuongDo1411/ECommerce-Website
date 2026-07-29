@@ -32,9 +32,12 @@ let replset: MongoMemoryReplSet;
 let placeOrderBatch: PlaceOrderBatch;
 let computeOrderQuote: ComputeOrderQuote;
 
-function must<T>(value: T | null | undefined, message = "expected a value"): T {
+function must<T>(
+  value: T,
+  message = "expected a value",
+): Exclude<T, null | undefined> {
   if (value === null || value === undefined) throw new Error(message);
-  return value;
+  return value as Exclude<T, null | undefined>;
 }
 
 let emailSeq = 0;

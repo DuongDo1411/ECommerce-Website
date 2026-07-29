@@ -9,12 +9,27 @@ import ReturnRequest, {
   type EscalationStage,
   type ReturnStatus,
 } from "@/model/returnRequest.model";
-import type { ClientSession } from "mongoose";
+import { enqueueReturnMailIntent } from "@/lib/mail/outbox";
+import mongoose, { type ClientSession } from "mongoose";
 import {
   ESCALATION_BY_ACTION,
   validateTransition,
   type ActorRole,
 } from "./policy";
+
+/**
+ * Ý định gửi mail đi KÈM transition, ghi trong cùng transaction.
+ *
+ * Trước đây mail gửi sau khi transition xong và nuốt lỗi, nên hai thứ có thể lệch nhau:
+ * trạng thái đã đổi mà người liên quan không hay biết. Ghi chung một transaction thì hoặc
+ * cả hai cùng có, hoặc cả hai cùng không.
+ */
+export interface ReturnMailIntentInput {
+  event: string;
+  note?: string;
+  /** Hoãn gửi tới mốc này (vd: chờ GHN cấp mã vận đơn rồi mới báo cho người mua). */
+  notBefore?: Date;
+}
 
 export type TransitionError =
   | "unknown_action"
@@ -26,7 +41,7 @@ export type TransitionOutcome =
   | { ok: true; to: ReturnStatus; doc: IReturnRequest }
   | { ok: false; error: TransitionError };
 
-export async function transitionReturn(params: {
+export interface TransitionParams {
   id: unknown;
   from: ReturnStatus;
   action: string;
@@ -39,12 +54,42 @@ export async function transitionReturn(params: {
   set?: Record<string, unknown>;
   push?: Record<string, unknown>;
   unset?: string[];
-}): Promise<TransitionOutcome> {
+  /** Thông báo phát sinh từ chính transition này, ghi cùng transaction. */
+  mailIntent?: ReturnMailIntentInput;
+}
+
+export async function transitionReturn(
+  params: TransitionParams,
+): Promise<TransitionOutcome> {
   const validated = validateTransition(params.from, params.action, params.role);
   if (!validated.ok) return { ok: false, error: validated.error! };
-
   const to = validated.to!;
+
+  // Caller đã mở transaction, hoặc chẳng có mail nào phải ghi kèm → chạy thẳng.
+  if (params.session || !params.mailIntent) {
+    return applyTransition(params, to, params.session);
+  }
+
+  // Có mail mà chưa có transaction: tự mở một cái. Thiếu bước này thì transition commit
+  // xong mà outbox hỏng là trạng thái đổi trong im lặng — đúng cái lệch cần chặn.
+  const session = await mongoose.startSession();
+  try {
+    return await session.withTransaction(() =>
+      applyTransition(params, to, session),
+    );
+  } finally {
+    await session.endSession();
+  }
+}
+
+async function applyTransition(
+  params: TransitionParams,
+  to: ReturnStatus,
+  session?: ClientSession,
+): Promise<TransitionOutcome> {
   const now = new Date();
+  // Sinh _id tường minh để dedupeKey của mail trỏ được vào đúng dòng history đã sinh ra nó.
+  const historyEntryId = new mongoose.Types.ObjectId();
 
   // Ghi giai đoạn leo thang trong CÙNG update với status: nếu để caller tự set thì chỉ
   // cần một chỗ quên là case nằm trong queue trọng tài mà admin không biết xử cái gì.
@@ -66,6 +111,7 @@ export async function transitionReturn(params: {
     $push: {
       ...(params.push ?? {}),
       history: {
+        _id: historyEntryId,
         actor: params.actorId,
         role: params.role,
         action: params.action,
@@ -83,10 +129,30 @@ export async function transitionReturn(params: {
   const doc = await ReturnRequest.findOneAndUpdate(
     { _id: params.id, status: params.from },
     update,
-    { returnDocument: "after", session: params.session },
+    { returnDocument: "after", session },
   );
 
   if (!doc) return { ok: false, error: "conflict" };
+
+  if (params.mailIntent) {
+    await enqueueReturnMailIntent(
+      {
+        returnRequestId: doc._id,
+        event: params.mailIntent.event,
+        note: params.mailIntent.note ?? params.reason,
+        // Trạng thái ĐÍCH của chính transition này. Mail dựng sau vài phút, lúc đó case có
+        // thể đã đi tiếp — báo trạng thái hiện tại cho một sự kiện cũ là sai lệch.
+        statusAtEvent: to,
+        historyEntryId,
+        // Khoá gắn với DÒNG HISTORY, không phải case: cùng một case có thể escalate hai
+        // lần hợp lệ ở hai giai đoạn khác nhau, và cả hai đều đáng được báo.
+        dedupeKey: `return/${doc._id}/${historyEntryId}/${params.mailIntent.event}`,
+        notBefore: params.mailIntent.notBefore,
+      },
+      { session },
+    );
+  }
+
   return { ok: true, to, doc };
 }
 

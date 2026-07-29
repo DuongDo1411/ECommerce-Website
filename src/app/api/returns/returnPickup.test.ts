@@ -27,9 +27,8 @@ vi.hoisted(() => {
 // auth() trả về gì là do từng test quyết định (buyer / người ngoài / admin).
 const authState: { value: unknown } = { value: null };
 vi.mock("@/auth", () => ({ auth: () => Promise.resolve(authState.value) }));
-vi.mock("@/lib/mailer", () => ({
-  sendMail: vi.fn().mockResolvedValue(undefined),
-}));
+// Thông báo giờ chỉ được ghi vào outbox trong cùng transaction với transition; không có gì
+// flush hàng đợi trong test nên không cần chặn tầng gửi.
 vi.mock("@/lib/returns/evidence", () => ({
   collectEvidence: vi
     .fn()

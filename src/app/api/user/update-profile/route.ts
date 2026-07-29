@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import uploadOnCloudinary from "@/lib/cloudinary";
 import connectDB from "@/lib/connectDB";
+import { toCurrentUserDTO } from "@/lib/dto";
 import User from "@/model/user.model";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -57,17 +58,18 @@ export async function POST(req: NextRequest) {
         $set,
       },
       { new: true },
-    );
+    ).select("+password");
     if (!updatedUser) {
       return NextResponse.json({ message: "User not found" }, { status: 400 });
     }
 
     const userObject = updatedUser.toObject();
-    const { password, ...safeUser } = userObject;
-    return NextResponse.json(
-      { ...safeUser, hasPassword: !!password },
-      { status: 200 },
-    );
+    const hasPassword =
+      typeof userObject.password === "string" &&
+      userObject.password.length > 0;
+    return NextResponse.json(toCurrentUserDTO(userObject, hasPassword), {
+      status: 200,
+    });
   } catch (error) {
     return NextResponse.json(
       {
