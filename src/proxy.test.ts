@@ -96,10 +96,21 @@ describe("proxy lets machine-to-machine routes through", () => {
     expect(res.status).toBe(200);
   });
 
-  it("passes an Origin-less POST to the outbox cron in production", async () => {
+  // Liệt kê cả bốn route cron ở đây là cố ý. Thiếu một đường dẫn trong PUBLIC_API_EXACT
+  // không làm test nào khác đỏ, không sinh log, không làm deploy thất bại — scheduler chỉ
+  // nhận 401 và công việc định kỳ đó im lặng không bao giờ chạy. Đây là chỗ duy nhất
+  // phát hiện được sai sót đó.
+  it("passes Origin-less POSTs to every cron route a scheduler must reach", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const res = await proxy(postFor("/api/cron/flush-email-outbox"));
-    expect(res.status).toBe(200);
+    for (const path of [
+      "/api/cron/flush-email-outbox",
+      "/api/cron/release-stale-vnpay",
+      "/api/cron/process-returns",
+      "/api/cron/release-stale-orders",
+    ]) {
+      const res = await proxy(postFor(path));
+      expect(res.status).toBe(200);
+    }
   });
 
   it("still blocks an Origin-less POST to any other API in production", async () => {
@@ -113,8 +124,11 @@ describe("proxy lets machine-to-machine routes through", () => {
     expect(res.status).toBe(401);
   });
 
-  it("opens only the cron routes explicitly listed", async () => {
-    const res = await proxy(postFor("/api/cron/process-returns"));
+  it("does not open a cron route that is not on the list", async () => {
+    // Dùng đường dẫn không tồn tại để chốt rằng đây là liệt kê chính xác chứ không phải
+    // tiền tố "/api/cron". Route cron thêm về sau phải được khai báo tường minh, không
+    // được thừa hưởng quyền public từ những route đứng trước.
+    const res = await proxy(postFor("/api/cron/khong-ton-tai"));
     expect(res.status).toBe(401);
   });
 });

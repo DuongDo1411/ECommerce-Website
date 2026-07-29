@@ -27,11 +27,19 @@ const PUBLIC_API_EXACT = [
   "/api/ghn/webhook",
   "/api/orders/vnpay/ipn",
   "/api/user/currentUser",
-  "/api/cron/release-stale-vnpay",
   // Resend gọi tới; route tự verify chữ ký Standard Webhooks bằng RESEND_WEBHOOK_SECRET.
   "/api/webhooks/resend",
-  // Scheduler ngoài gọi tới; route tự đối chiếu header x-cron-secret với CRON_SECRET.
+  // Bốn route cron. Scheduler ngoài không có session; mỗi route tự đối chiếu header
+  // x-cron-secret với CRON_SECRET và chặn hết khi biến đó chưa được đặt.
+  //
+  // Bỏ sót một dòng ở đây là công việc định kỳ tương ứng không bao giờ chạy được ở
+  // production, mà không có gì báo động: scheduler chỉ nhận 401 lặng lẽ, còn ứng dụng
+  // vẫn xanh. Hai dòng cuối từng thiếu đúng như vậy, khiến toàn bộ cơ chế quét hạn
+  // hoàn/trả và giải phóng đơn treo không hoạt động dù mã nguồn đã đầy đủ.
   "/api/cron/flush-email-outbox",
+  "/api/cron/release-stale-vnpay",
+  "/api/cron/process-returns",
+  "/api/cron/release-stale-orders",
 ];
 
 // Origin-less integrations authenticate with their own signature/secret and
