@@ -20,6 +20,17 @@ if (process.env.NODE_ENV === "production" && !process.env.AUTH_TOKEN_PEPPER) {
 // một người dùng thật đang đứng chờ. Ném ngay tại đây để lỗi rơi vào lúc deploy.
 validateMailConfiguration();
 
+// Lỗi cấp request của Next.js nổi lên thành promise bị reject mà không ai bắt, và Node từ
+// v15 coi đó là lỗi chí tử rồi thoát. Hậu quả đã xảy ra thật ở production: một tab trình
+// duyệt còn giữ Server Action ID của bản build cũ gửi request lên, Next ném lỗi
+// "Server Reference ID did not match", tiến trình chết và MỌI người đang dùng bị ngắt.
+//
+// Một request hỏng không được phép thành sự cố toàn hệ thống. Ghi log rồi phục vụ tiếp.
+// Đăng ký ở cấp module để phủ cả giai đoạn khởi động, trước khi có HTTP server.
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const dev = process.env.NODE_ENV !== "production";
 // Production phải bind 0.0.0.0: nền tảng hosting đưa traffic vào container qua network
@@ -66,5 +77,48 @@ app.prepare().then(async () => {
         dev ? "development" : process.env.NODE_ENV
       }`,
     );
+  });
+
+  // Nền tảng hosting gửi SIGTERM khi deploy hoặc khởi động lại, chờ một lúc, rồi SIGKILL.
+  // Không xử lý tín hiệu thì tiến trình bị giết thô: client Socket.IO mất kết nối giữa
+  // luồng thay vì được thông báo, và Atlas thấy socket bị đứt chứ không phải ngắt tử tế.
+  let shuttingDown = false;
+  const shutdown = async (reason: string) => {
+    if (shuttingDown) return; // SIGTERM rồi SIGINT liên tiếp không được chạy hai lần.
+    shuttingDown = true;
+    console.log(`> shutting down (${reason})`);
+
+    // Trần thời gian tự đặt, thấp hơn hạn của nền tảng: thà tự thoát với mã rõ ràng còn
+    // hơn treo rồi bị SIGKILL, vì SIGKILL không để lại dấu vết nào trong log.
+    const forceExit = setTimeout(() => {
+      console.error("> shutdown exceeded 10s — forcing exit");
+      process.exit(1);
+    }, 10_000);
+    forceExit.unref();
+
+    try {
+      // Ngắt client trước rồi mới đóng HTTP server. Gọi io.close() sẽ tự đóng luôn HTTP
+      // server bên dưới, khiến lần close() thứ hai báo lỗi "Server is not running".
+      io.disconnectSockets(true);
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+      const { default: mongoose } = await import("mongoose");
+      await mongoose.connection.close();
+    } catch (error) {
+      console.error("> shutdown error", error);
+    }
+
+    clearTimeout(forceExit);
+    process.exit(reason === "uncaughtException" ? 1 : 0);
+  };
+
+  for (const signal of ["SIGTERM", "SIGINT"] as const) {
+    process.on(signal, () => void shutdown(signal));
+  }
+
+  // Khác với unhandledRejection: tới đây trạng thái tiến trình đã không còn tin được nữa,
+  // nên phải thoát. Nhưng thoát có trật tự và có log, để nền tảng dựng instance mới.
+  process.on("uncaughtException", (error) => {
+    console.error("[uncaughtException]", error);
+    void shutdown("uncaughtException");
   });
 });
