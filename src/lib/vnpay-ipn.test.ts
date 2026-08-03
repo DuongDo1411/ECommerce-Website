@@ -91,6 +91,7 @@ describe("vnpay IPN helpers", () => {
         ],
       },
       [{ $set: { returnedAmount: "$totalAmount", refundStatus: "pending" } }],
+      { updatePipeline: true },
     );
   });
 
@@ -105,6 +106,10 @@ describe("vnpay IPN helpers", () => {
         isPaid: { $ne: true },
       },
       buildConfirmVnpayPaidUpdate(result),
+      // Tham số thứ ba không phải chi tiết vụn: Mongoose 9 ném lỗi nếu thiếu, và vì mock ở
+      // đây thay thế Order.updateMany nên chỉ có assertion này chặn được việc nó bị bỏ ra
+      // lần nữa. Bỏ nó đi thì test vẫn xanh trong khi thanh toán ở production lại vỡ.
+      { updatePipeline: true },
     );
     expect(mocks.checkoutBatchUpdateOne).toHaveBeenCalledWith(
       { txnRef: "txn-1" },
