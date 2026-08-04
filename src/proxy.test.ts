@@ -49,6 +49,32 @@ describe("proxy routes unauthenticated visitors to the matching portal", () => {
     }
   });
 
+  // Đối trọng của hai test trên: chúng chốt rằng trang riêng tư BỊ chặn, còn test này chốt
+  // rằng trang công khai KHÔNG bị chặn. Thiếu nó thì bỏ sót một dòng trong PUBLIC_PAGE_PREFIXES
+  // không làm gì đỏ — proxy redirect êm về /login và trang chỉ đơn giản là không dùng được.
+  //
+  // Đã xảy ra thật với /forgot-password và /reset-password: đặt lại mật khẩu không ai với tới
+  // được, vì người cần nó chính là người không đăng nhập được.
+  it("lets an unauthenticated visitor reach every public page", async () => {
+    for (const path of [
+      "/",
+      "/login",
+      "/register",
+      "/vendor/login",
+      "/admin/login",
+      "/forgot-password",
+      "/reset-password",
+      "/shop",
+      "/shop/shop-123",
+      "/product/product-123",
+      "/category",
+      "/vouchers",
+    ]) {
+      const res = await proxy(reqFor(path));
+      expect(res.headers.get("location"), path).toBeNull();
+    }
+  });
+
   it("sends other protected pages to /login carrying a safe callbackUrl", async () => {
     const res = await proxy(reqFor("/orders?status=pending"));
     const loc = location(res);

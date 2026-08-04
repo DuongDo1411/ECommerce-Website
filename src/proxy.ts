@@ -3,11 +3,29 @@ import { homeForRole } from "@/lib/roleRoutes";
 import { isCrossSiteRequest } from "@/lib/security/csrf";
 import { NextRequest, NextResponse } from "next/server";
 
+// Trang mà khách CHƯA đăng nhập phải vào được. Thiếu một dòng ở đây không gây lỗi nào ồn ào:
+// proxy chỉ redirect êm về /login kèm callbackUrl, nên trông như trang đó "không hoạt động".
+//
+// Hai đường dẫn đặt lại mật khẩu từng thiếu, và hậu quả là một nghịch lý: người cần đặt lại
+// mật khẩu chính là người không đăng nhập được, nên chức năng đó không ai với tới. Tệ hơn,
+// /reset-password bị chặn nghĩa là liên kết trong email cũng dẫn về trang đăng nhập — thư gửi
+// thành công vẫn vô ích.
+//
+// Bốn đường dẫn duyệt hàng cũng từng thiếu, trong khi các API tương ứng đã được mở công khai
+// ngay bên dưới. Hai danh sách đó phải khớp nhau: mở API mà chặn trang thì dữ liệu công khai
+// chẳng ai xem được, còn chặn API mà mở trang thì ra trang trắng.
 const PUBLIC_PAGE_PREFIXES = [
   "/login",
   "/register",
   "/vendor/login",
   "/admin/login",
+  "/forgot-password",
+  "/reset-password",
+  // Duyệt hàng không cần tài khoản. Tiền tố phủ cả /shop/[shopId] và /product/[id].
+  "/shop",
+  "/product",
+  "/category",
+  "/vouchers",
 ];
 
 const PUBLIC_API_PREFIXES = [
