@@ -42,6 +42,9 @@ const PUBLIC_API_PREFIXES = [
 // tại, và route thêm sau này sẽ vô tình thành public mà không ai nhận ra.
 const PUBLIC_API_EXACT = [
   "/api/admin/check-admin",
+  // Render gọi tới để quyết định có khởi động lại service hay không, và nó không có session.
+  // Chặn đường này là nền tảng kết luận ứng dụng đã chết rồi restart vô hạn.
+  "/api/health",
   "/api/ghn/webhook",
   "/api/orders/vnpay/ipn",
   "/api/user/currentUser",

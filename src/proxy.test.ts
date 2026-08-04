@@ -139,6 +139,14 @@ describe("proxy lets machine-to-machine routes through", () => {
     }
   });
 
+  // Render gọi health check không kèm session. Chặn nó là nền tảng kết luận ứng dụng đã chết
+  // rồi restart vô hạn — một dòng thiếu ở PUBLIC_API_EXACT đủ để gây ra vòng lặp đó.
+  it("lets the platform health check through without a session", async () => {
+    const res = await proxy(reqFor("/api/health"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
   it("still blocks an Origin-less POST to any other API in production", async () => {
     vi.stubEnv("NODE_ENV", "production");
     const res = await proxy(postFor("/api/user/cart"));
