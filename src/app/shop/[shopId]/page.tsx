@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import Navbar from "@/app/component/Navbar";
 import Footer from "@/app/component/Footer";
 import ShopDetailClient from "./ShopDetailClient";
+import mongoose from "mongoose";
 
 interface ShopProductReviewDoc {
   rating?: number;
@@ -38,6 +39,11 @@ export default async function ShopDetailPage({
 }) {
   await connectDB();
   const { shopId } = await params;
+
+  // Cùng cái bẫy như trang chi tiết sản phẩm: shopId sai định dạng làm Mongoose ném CastError
+  // ở findOne bên dưới, nên notFound() không chạy tới và ra 500 thay vì 404. Ở đây shopId còn
+  // được cast lần thứ hai trong Product.find({ vendor: shopId }); chặn một lần là xong cả hai.
+  if (!mongoose.Types.ObjectId.isValid(shopId)) notFound();
 
   const session = await auth();
   const currentUser = await User.findById(session?.user?.id);

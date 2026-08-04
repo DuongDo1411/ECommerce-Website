@@ -6,6 +6,7 @@ import Footer from "@/app/component/Footer";
 import { auth } from "@/auth";
 import User from "@/model/user.model";
 import ProductDetailClient from "./ProductDetailClient";
+import mongoose from "mongoose";
 
 export default async function ProductPage({
   params,
@@ -13,6 +14,14 @@ export default async function ProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // Tham số động trong URL là chuỗi do người lạ đưa vào. Đưa thẳng nó vào _id thì Mongoose ném
+  // CastError chứ không trả về null, nên nhánh notFound() bên dưới KHÔNG BAO GIỜ chạy tới và
+  // người dùng nhận 500 kèm trang lỗi chung thay vì 404. Mã trông như đã phòng ngừa mà không.
+  //
+  // Đã xảy ra thật ở production với /product/abc. Bot quét web, liên kết cũ bị cắt ngắn, hay
+  // một lần gõ tay sai là đủ. Chặn ở đây, trước cả connectDB, vì id sai thì không cần tới DB.
+  if (!mongoose.Types.ObjectId.isValid(id)) notFound();
 
   await connectDB();
 
