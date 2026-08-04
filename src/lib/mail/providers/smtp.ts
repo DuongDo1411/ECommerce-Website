@@ -83,7 +83,7 @@ export function createSmtpProvider(user: string, pass: string): MailProvider {
     // này bỏ qua options — giới hạn đã nêu ở đầu file.
     async send(message: MailMessage): Promise<MailSendResult> {
       try {
-        const displayName = (message.fromName ?? "Ecoshop").replace(
+        const displayName = (message.fromName ?? "MultiCart").replace(
           /["<>\\]/g,
           "",
         );

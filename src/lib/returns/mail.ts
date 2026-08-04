@@ -76,7 +76,7 @@ function layout(
       ${body}
       ${button}
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"/>
-      <p style="font-size:12px;color:#6b7280">Email tự động từ Ecoshop — vui lòng không trả lời.</p>
+      <p style="font-size:12px;color:#6b7280">Email tự động từ MultiCart — vui lòng không trả lời.</p>
     </div>`;
 }
 
@@ -135,7 +135,7 @@ export async function renderReturnMail(
           if (!vendor?.email) return null;
           return {
             to: vendor.email,
-            subject: `[Ecoshop] Yêu cầu trả hàng mới — đơn #${orderRef}`,
+            subject: `[MultiCart] Yêu cầu trả hàng mới — đơn #${orderRef}`,
             html: layout(
               "Có yêu cầu trả hàng mới",
               `<p>Người mua <b>${esc(buyer?.name)}</b> vừa gửi yêu cầu trả hàng cho đơn <b>#${orderRef}</b>.</p>
@@ -162,7 +162,7 @@ export async function renderReturnMail(
             : "";
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Yêu cầu trả hàng đã được duyệt — đơn #${orderRef}`,
+            subject: `[MultiCart] Yêu cầu trả hàng đã được duyệt — đơn #${orderRef}`,
             html: layout(
               "Yêu cầu trả hàng đã được duyệt",
               `<p>Đơn <b>#${orderRef}</b> đã được duyệt trả hàng. Vui lòng chuẩn bị gói hàng để gửi về người bán.</p>
@@ -187,7 +187,7 @@ export async function renderReturnMail(
           if (!buyer?.email) return null;
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Được hoàn tiền, không cần trả hàng — đơn #${orderRef}`,
+            subject: `[MultiCart] Được hoàn tiền, không cần trả hàng — đơn #${orderRef}`,
             html: layout(
               "Bạn được hoàn tiền mà không cần gửi hàng về",
               `<p>Đơn <b>#${orderRef}</b> đã được duyệt hoàn tiền.</p>${amountLine}
@@ -200,7 +200,7 @@ export async function renderReturnMail(
           if (!buyer?.email) return null;
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Yêu cầu trả hàng bị từ chối — đơn #${orderRef}`,
+            subject: `[MultiCart] Yêu cầu trả hàng bị từ chối — đơn #${orderRef}`,
             html: layout(
               "Yêu cầu trả hàng bị từ chối",
               `<p>Người bán đã từ chối yêu cầu trả hàng cho đơn <b>#${orderRef}</b>.</p>
@@ -214,7 +214,7 @@ export async function renderReturnMail(
           if (!vendor?.email) return null;
           return {
             to: vendor.email,
-            subject: `[Ecoshop] Hàng hoàn đã về — cần kiểm định đơn #${orderRef}`,
+            subject: `[MultiCart] Hàng hoàn đã về — cần kiểm định đơn #${orderRef}`,
             html: layout(
               "Hàng hoàn đã về kho của bạn",
               `<p>Kiện hàng hoàn của đơn <b>#${orderRef}</b> đã được giao tới.</p>
@@ -228,7 +228,7 @@ export async function renderReturnMail(
           if (!adminEmail) return null;
           return {
             to: adminEmail,
-            subject: `[Ecoshop] Case hoàn trả cần phân xử — đơn #${orderRef}`,
+            subject: `[MultiCart] Case hoàn trả cần phân xử — đơn #${orderRef}`,
             html: layout(
               "Có case cần sàn phân xử",
               `<p>Case của đơn <b>#${orderRef}</b> đã được đẩy lên trọng tài.</p>
@@ -242,7 +242,7 @@ export async function renderReturnMail(
           if (!buyer?.email) return null;
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Đơn vị vận chuyển đã lấy hàng hoàn — đơn #${orderRef}`,
+            subject: `[MultiCart] Đơn vị vận chuyển đã lấy hàng hoàn — đơn #${orderRef}`,
             html: layout(
               "Đơn vị vận chuyển đã lấy hàng",
               `<p>Kiện hàng hoàn của đơn <b>#${orderRef}</b> đã được đơn vị vận chuyển lấy đi và đang trên đường về người bán.</p>
@@ -256,7 +256,7 @@ export async function renderReturnMail(
           if (!buyer?.email) return null;
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Đang xử lý hoàn tiền — đơn #${orderRef}`,
+            subject: `[MultiCart] Đang xử lý hoàn tiền — đơn #${orderRef}`,
             html: layout(
               "Yêu cầu của bạn đã được chấp nhận",
               `<p>Đơn <b>#${orderRef}</b> đã được duyệt hoàn tiền.</p>${amountLine}
@@ -269,7 +269,7 @@ export async function renderReturnMail(
           if (!buyer?.email) return null;
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Đã xử lý yêu cầu - đơn #${orderRef}`,
+            subject: `[MultiCart] Đã xử lý yêu cầu - đơn #${orderRef}`,
             html: layout(
               "Yêu cầu đã được xử lý",
               `<p>Yêu cầu của đơn <b>#${orderRef}</b> đã được chấp nhận.</p>
@@ -282,7 +282,7 @@ export async function renderReturnMail(
           if (!buyer?.email) return null;
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Yêu cầu trả hàng đã hết hạn - đơn #${orderRef}`,
+            subject: `[MultiCart] Yêu cầu trả hàng đã hết hạn - đơn #${orderRef}`,
             html: layout(
               "Yêu cầu trả hàng đã hết hạn",
               `<p>Yêu cầu của đơn <b>#${orderRef}</b> đã đóng vì hàng không được gửi trong thời hạn quy định.</p>`,
@@ -294,7 +294,7 @@ export async function renderReturnMail(
           if (!buyer?.email) return null;
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Yêu cầu trả hàng đã đóng - đơn #${orderRef}`,
+            subject: `[MultiCart] Yêu cầu trả hàng đã đóng - đơn #${orderRef}`,
             html: layout(
               "Yêu cầu trả hàng đã đóng",
               `<p>Thời hạn khiếu nại cho đơn <b>#${orderRef}</b> đã kết thúc và quyết định từ chối được giữ nguyên.</p>`,
@@ -306,7 +306,7 @@ export async function renderReturnMail(
           if (!buyer?.email) return null;
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Đã hoàn tiền — đơn #${orderRef}`,
+            subject: `[MultiCart] Đã hoàn tiền — đơn #${orderRef}`,
             html: layout(
               "Đã hoàn tiền cho bạn",
               `<p>Sàn đã hoàn tiền cho đơn <b>#${orderRef}</b>.</p>${amountLine}
@@ -321,7 +321,7 @@ export async function renderReturnMail(
           if (!buyer?.email) return null;
           return {
             to: buyer.email,
-            subject: `[Ecoshop] Hoàn tiền chưa thành công — đơn #${orderRef}`,
+            subject: `[MultiCart] Hoàn tiền chưa thành công — đơn #${orderRef}`,
             html: layout(
               "Hoàn tiền chưa thành công",
               `<p>Lần chuyển tiền cho đơn <b>#${orderRef}</b> chưa thành công.</p>

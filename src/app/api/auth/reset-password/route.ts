@@ -117,8 +117,8 @@ export async function POST(req: NextRequest) {
           {
             message: {
               to: user.email,
-              subject: "Mật khẩu Ecoshop đã được thay đổi",
-              html: "<p>Mật khẩu tài khoản Ecoshop của bạn vừa được đặt lại. Nếu không phải bạn, hãy liên hệ quản trị viên ngay.</p>",
+              subject: "Mật khẩu MultiCart đã được thay đổi",
+              html: "<p>Mật khẩu tài khoản MultiCart của bạn vừa được đặt lại. Nếu không phải bạn, hãy liên hệ quản trị viên ngay.</p>",
             },
             dedupeKey: `password-changed:${record._id}`,
           },

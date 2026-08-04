@@ -69,7 +69,7 @@ export async function sendLoginOtpEmail(email: string, otp: string) {
   logOtpInDev("login", email, otp);
   await sendMail({
     to: email,
-    subject: "Mã đăng nhập Ecoshop",
+    subject: "Mã đăng nhập MultiCart",
     html: otpEmailHtml(
       "Xác minh đăng nhập",
       "Nhập mã dưới đây để hoàn tất đăng nhập:",
@@ -89,8 +89,8 @@ export async function sendTwoFactorOtpEmail(
     to: email,
     subject:
       action === "enable"
-        ? "Bật xác minh 2 bước — Ecoshop"
-        : "Tắt xác minh 2 bước — Ecoshop",
+        ? "Bật xác minh 2 bước — MultiCart"
+        : "Tắt xác minh 2 bước — MultiCart",
     html: otpEmailHtml(
       action === "enable"
         ? "Xác nhận bật xác minh 2 bước"
@@ -112,7 +112,7 @@ export function passwordResetMessage(
 ): MailMessage {
   return {
     to: email,
-    subject: "Đặt lại mật khẩu — Ecoshop",
+    subject: "Đặt lại mật khẩu — MultiCart",
     html: `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:8px">
         <h2 style="color:#111">Đặt lại mật khẩu</h2>
