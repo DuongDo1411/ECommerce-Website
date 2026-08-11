@@ -1,6 +1,7 @@
 "use client";
 import ReturnModal from "@/app/component/Returns/ReturnModal";
 import { returnStatusLabel } from "@/lib/returns/labels";
+import { ORDER_STATUS_LABELS } from "@/lib/orders/statusLabels";
 import { motion, AnimatePresence } from "motion/react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -101,43 +102,43 @@ const STATUS_CONFIG: Record<
   { label: string; color: string; bg: string; border: string }
 > = {
   pending: {
-    label: "Đang chờ",
+    label: ORDER_STATUS_LABELS.pending,
     color: "text-yellow-400",
     bg: "bg-yellow-500/10",
     border: "border-yellow-500/30",
   },
   confirmed: {
-    label: "Đã xác nhận",
+    label: ORDER_STATUS_LABELS.confirmed,
     color: "text-blue-400",
     bg: "bg-blue-500/10",
     border: "border-blue-500/30",
   },
   shipped: {
-    label: "Đang vận chuyển",
+    label: ORDER_STATUS_LABELS.shipped,
     color: "text-purple-400",
     bg: "bg-purple-500/10",
     border: "border-purple-500/30",
   },
   delivered: {
-    label: "Đã giao",
+    label: ORDER_STATUS_LABELS.delivered,
     color: "text-green-400",
     bg: "bg-green-500/10",
     border: "border-green-500/30",
   },
   returned: {
-    label: "Đã trả hàng",
+    label: ORDER_STATUS_LABELS.returned,
     color: "text-orange-400",
     bg: "bg-orange-500/10",
     border: "border-orange-500/30",
   },
   delivery_exception: {
-    label: "Giao không thành công",
+    label: ORDER_STATUS_LABELS.delivery_exception,
     color: "text-amber-400",
     bg: "bg-amber-500/10",
     border: "border-amber-500/30",
   },
   cancelled: {
-    label: "Đã hủy",
+    label: ORDER_STATUS_LABELS.cancelled,
     color: "text-red-400",
     bg: "bg-red-500/10",
     border: "border-red-500/30",

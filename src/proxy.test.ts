@@ -167,6 +167,28 @@ describe("proxy lets machine-to-machine routes through", () => {
   });
 });
 
+// /api/assistant/chat khác các route trong PUBLIC_API_EXACT ở trên: người gọi là
+// trình duyệt của khách thật (guest), không phải máy — nhưng vẫn phải đi qua đúng
+// hai lớp: mở cho khách KHÔNG session, nhưng KHÔNG được miễn kiểm CSRF, và KHÔNG
+// được mở nhầm sang các route khác dưới cùng /api/assistant (khai báo EXACT, không
+// phải tiền tố).
+describe("proxy opens /api/assistant/chat for guests without breaking CSRF", () => {
+  it("lets a guest POST /api/assistant/chat same-origin without a session", async () => {
+    const res = await proxy(postFor("/api/assistant/chat"));
+    expect(res.status).toBe(200);
+  });
+
+  it("still returns 403 for a cross-site POST to /api/assistant/chat", async () => {
+    const res = await proxy(postFor("/api/assistant/chat", "https://evil.example.com"));
+    expect(res.status).toBe(403);
+  });
+
+  it("does not open sibling routes under /api/assistant to guests", async () => {
+    const res = await proxy(reqFor("/api/assistant/something-else"));
+    expect(res.status).toBe(401);
+  });
+});
+
 describe("proxy keeps CSRF and auth intact for everything else", () => {
   it("returns 403 for a cross-site mutation", async () => {
     const res = await proxy(

@@ -7,6 +7,7 @@ import InitUser from "@/InitUser";
 import { CartProvider } from "@/context/CartContext";
 import { ChatProvider } from "@/app/component/Chat/ChatContext";
 import { ToastProvider } from "@/context/ToastContext";
+import AssistantWidget from "@/app/component/Assistant/AssistantWidget";
 
 export const metadata: Metadata = {
   title: "multicart",
@@ -29,6 +30,7 @@ export default function RootLayout({
                   <InitUser />
                   {children}
                 </ChatProvider>
+                <AssistantWidget />
               </ToastProvider>
             </CartProvider>
           </StoreProvider>

@@ -48,6 +48,9 @@ const PUBLIC_API_EXACT = [
   "/api/ghn/webhook",
   "/api/orders/vnpay/ipn",
   "/api/user/currentUser",
+  // Trợ lý AI phải trả lời được cả khách chưa đăng nhập (tìm sản phẩm, hỏi chính
+  // sách). Route tự phân biệt guest/user bằng session bên trong, không tin proxy.
+  "/api/assistant/chat",
   // Resend gọi tới; route tự verify chữ ký Standard Webhooks bằng RESEND_WEBHOOK_SECRET.
   "/api/webhooks/resend",
   // Bốn route cron. Scheduler ngoài không có session; mỗi route tự đối chiếu header
