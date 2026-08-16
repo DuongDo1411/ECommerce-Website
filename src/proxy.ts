@@ -21,6 +21,10 @@ const PUBLIC_PAGE_PREFIXES = [
   "/admin/login",
   "/forgot-password",
   "/reset-password",
+  // Người bấm liên kết kích hoạt trong mail đăng ký chắc chắn CHƯA đăng nhập — tài khoản
+  // của họ còn chưa tồn tại. Thiếu dòng này thì proxy đẩy họ về /login và không ai kích
+  // hoạt được tài khoản, đúng nghịch lý đã xảy ra với hai đường đặt lại mật khẩu ở trên.
+  "/activate",
   // Duyệt hàng không cần tài khoản. Tiền tố phủ cả /shop/[shopId] và /product/[id].
   "/shop",
   "/product",

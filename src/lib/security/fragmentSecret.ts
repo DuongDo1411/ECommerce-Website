@@ -1,7 +1,8 @@
 const HEX_256_RE = /^[a-f0-9]{64}$/i;
 
-export const REGISTRATION_CHALLENGE_STORAGE_KEY =
-  "ecoshop.registration-challenge";
+/** Token kích hoạt tài khoản, bắt từ fragment của liên kết trong mail đăng ký. */
+export const REGISTRATION_TOKEN_STORAGE_KEY = "ecoshop.registration-token";
+/** Mốc gửi mail kích hoạt gần nhất, để nút "gửi lại" giữ được cooldown qua reload. */
 export const REGISTRATION_LAST_SENT_AT_STORAGE_KEY =
   "ecoshop.registration-last-sent-at";
 export const PASSWORD_RESET_TOKEN_STORAGE_KEY = "ecoshop.password-reset-token";

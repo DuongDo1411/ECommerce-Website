@@ -64,6 +64,7 @@ describe("proxy routes unauthenticated visitors to the matching portal", () => {
       "/admin/login",
       "/forgot-password",
       "/reset-password",
+      "/activate",
       "/shop",
       "/shop/shop-123",
       "/product/product-123",

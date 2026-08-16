@@ -1,34 +1,52 @@
 import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 
+import {
+  ACTIVATION_TTL_MS,
+  consumeActivationSendLimits,
+  enqueueActivationMail,
+} from "@/lib/auth/registrationActivation";
 import connectDB from "@/lib/connectDB";
+import { flushOne } from "@/lib/mail/outbox";
+import { afterResponse } from "@/lib/security/afterResponse";
 import { emailIdentityFilter, normalizeEmail } from "@/lib/security/email";
+import { generateToken, hashToken } from "@/lib/security/otp";
 import { BCRYPT_COST, validatePasswordPolicy } from "@/lib/security/password";
-import { clientIp, rateLimit } from "@/lib/security/rateLimit";
+import { clientIp } from "@/lib/security/rateLimit";
 import { readLimitedJsonBody } from "@/lib/security/requestBody";
 import { noStoreJson } from "@/lib/security/response";
+import PendingRegistration from "@/model/pendingRegistration.model";
 import User from "@/model/user.model";
 
 const MAX_BODY_BYTES = 4 * 1024;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Ném từ trong transaction khi email đã có tài khoản thật; ánh xạ ra 409. */
+class AccountAlreadyExists extends Error {}
+
+function isDuplicateKey(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === 11000
+  );
+}
+
+/**
+ * Đăng ký trực tiếp bằng email và mật khẩu.
+ *
+ * Route này KHÔNG tạo tài khoản. Nó ghi một bản ghi chờ rồi gửi liên kết kích hoạt; `users`
+ * chỉ nhận document mới ở `/api/auth/activate` sau khi chủ hộp thư bấm liên kết. Nhờ vậy mọi
+ * hàng trong `users` đều là tài khoản đã xác minh email, và không cần thêm cờ trạng thái nào
+ * lên user schema — tài khoản cũ tiếp tục đăng nhập bình thường, không phải backfill.
+ *
+ * Google OAuth không đi qua đây: Google đã chứng minh quyền sở hữu email nên tạo user ngay.
+ */
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
-
-    const ip = clientIp(req.headers);
-    if (
-      ip &&
-      !(await rateLimit(`register:ip:${ip}`, {
-        max: 10,
-        windowMs: 60 * 60 * 1000,
-      }))
-    ) {
-      return noStoreJson(
-        { message: "Bạn đã thao tác quá nhiều lần. Vui lòng thử lại sau." },
-        { status: 429 },
-      );
-    }
 
     let body: unknown;
     try {
@@ -46,6 +64,9 @@ export async function POST(req: NextRequest) {
       typeof record.email === "string" ? record.email.trim() : "";
     const password =
       typeof record.password === "string" ? record.password : "";
+    // Chỉ chấp nhận đúng một giá trị; mọi intent khác bị bỏ qua chứ không báo lỗi, để một
+    // tham số lạ trên URL không chặn được người dùng đăng ký.
+    const intent = record.intent === "vendor" ? ("vendor" as const) : undefined;
 
     if (!name || name.length > 120) {
       return noStoreJson({ message: "Tên không hợp lệ." }, { status: 400 });
@@ -60,40 +81,147 @@ export async function POST(req: NextRequest) {
     }
 
     const emailNormalized = normalizeEmail(rawEmail);
-    const existing = await User.findOne(
+
+    // Kiểm sớm để trả lỗi rõ ràng mà không tốn một lượt hạn mức; lần kiểm có thẩm quyền
+    // nằm trong transaction bên dưới.
+    const existingUser = await User.findOne(
       emailIdentityFilter(emailNormalized),
     ).select("_id");
-    if (existing) {
+    if (existingUser) {
       return noStoreJson({ message: "Email đã được sử dụng." }, { status: 409 });
     }
 
-    const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
-    // emailVerifiedAt is deliberately NOT set: the email is only "verified" once
-    // a real OTP round-trip (enabling 2FA, or a login OTP) actually completes.
-    await User.create({
-      name,
-      email: rawEmail,
+    const limit = await consumeActivationSendLimits(
       emailNormalized,
-      password: passwordHash,
-      role: "user",
-      sessionVersion: 0,
-      twoFactorEnabled: false,
+      clientIp(req.headers),
+    );
+    if (!limit.allowed) {
+      return noStoreJson(
+        { message: "Bạn đã thao tác quá nhiều lần. Vui lòng thử lại sau." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.max(1, limit.retryAfterSeconds)),
+          },
+        },
+      );
+    }
+
+    // Băm trước khi mở transaction. bcrypt tốn hàng trăm mili giây và giữ transaction mở
+    // suốt thời gian đó là giữ khoá vô ích; đổi lại, khi bản ghi chờ còn hiệu lực thì hash
+    // vừa tính bị bỏ đi — chấp nhận được vì đăng ký không phải đường nóng.
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
+    const token = generateToken();
+    const tokenHash = hashToken(token);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ACTIVATION_TTL_MS);
+
+    let outboxId: mongoose.Types.ObjectId;
+    const dbSession = await mongoose.startSession();
+    try {
+      // ID của job mail đi ra bằng giá trị trả về của callback chứ không bằng biến gán từ
+      // bên trong. MongoDB chạy lại callback khi gặp lỗi nhất thời, và ID sinh ra ở lượt đã
+      // bị rollback trỏ tới một job không còn tồn tại — đẩy hàng đợi theo ID đó là gọi vào
+      // hư vô, còn bức mail thật thì không ai đẩy.
+      outboxId = await dbSession.withTransaction<mongoose.Types.ObjectId>(
+        async () => {
+          // Kiểm lại trong transaction: `/api/auth/activate` và Google OAuth đều tạo user, và
+          // cả hai có thể xen vào giữa lần kiểm sớm ở trên với thời điểm này. Thiếu bước này
+          // sẽ để lại một bản ghi chờ mồ côi cho một email đã có tài khoản.
+          const claimed = await User.findOne(
+            emailIdentityFilter(emailNormalized),
+          )
+            .select("_id")
+            .session(dbSession);
+          if (claimed) throw new AccountAlreadyExists();
+
+          const existing = await PendingRegistration.findOne({ emailNormalized })
+            .select("+passwordHash")
+            .session(dbSession);
+
+          let effectiveEmail = rawEmail;
+          let effectiveIntent = intent;
+
+          if (existing) {
+            if (existing.expiresAt.getTime() > now.getTime()) {
+              // Bản ghi chờ còn sống: chỉ xoay token. Không cho một lượt đăng ký thứ hai ghi
+              // đè tên và mật khẩu của lượt đầu — nếu cho, ai biết địa chỉ email của người
+              // khác cũng đặt được mật khẩu cho tài khoản sắp được tạo.
+              effectiveEmail = existing.email;
+              effectiveIntent = existing.intent;
+            } else {
+              existing.name = name;
+              existing.email = rawEmail;
+              existing.passwordHash = passwordHash;
+              existing.intent = intent;
+            }
+            existing.tokenHash = tokenHash;
+            existing.expiresAt = expiresAt;
+            await existing.save({ session: dbSession });
+          } else {
+            await PendingRegistration.create(
+              [
+                {
+                  name,
+                  email: rawEmail,
+                  emailNormalized,
+                  passwordHash,
+                  tokenHash,
+                  expiresAt,
+                  intent,
+                },
+              ],
+              { session: dbSession },
+            );
+          }
+
+          return enqueueActivationMail({
+            email: effectiveEmail,
+            emailNormalized,
+            token,
+            tokenHash,
+            expiresAt,
+            intent: effectiveIntent,
+            session: dbSession,
+          });
+        },
+      );
+    } catch (txError) {
+      if (txError instanceof AccountAlreadyExists) {
+        return noStoreJson(
+          { message: "Email đã được sử dụng." },
+          { status: 409 },
+        );
+      }
+      // Hai lượt đăng ký cùng email chạy song song: unique index cho đúng một bên thắng.
+      // Bên thua không ghi đè bản ghi của bên thắng và cũng không gửi thêm mail — liên kết
+      // của bên thắng đã trên đường tới đúng hộp thư đó, nên trả cùng thông điệp là đúng
+      // sự thật với người dùng.
+      if (isDuplicateKey(txError)) {
+        console.warn("[register] đăng ký đồng thời, giữ bản ghi thắng");
+        return noStoreJson(
+          { message: "Đã gửi liên kết kích hoạt tới email của bạn." },
+          { status: 202 },
+        );
+      }
+      throw txError;
+    } finally {
+      await dbSession.endSession();
+    }
+
+    // Chỉ đẩy hàng đợi SAU khi transaction commit. Gọi trong transaction thì một lần
+    // rollback sẽ để lại mail đã gửi cho một bản ghi chờ không tồn tại. Tới được đây nghĩa là
+    // commit đã xong và `outboxId` là ID của job vừa commit, không phải của lượt rollback.
+    const jobId = outboxId;
+    afterResponse(async () => {
+      await flushOne(jobId);
     });
 
-    // Narrow response — never serialize the user document or the password hash.
     return noStoreJson(
-      { message: "Đăng ký thành công. Bạn có thể đăng nhập." },
-      { status: 201 },
+      { message: "Đã gửi liên kết kích hoạt tới email của bạn." },
+      { status: 202 },
     );
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { code?: unknown }).code === 11000
-    ) {
-      return noStoreJson({ message: "Email đã được sử dụng." }, { status: 409 });
-    }
     console.error("register error", error);
     return noStoreJson(
       { message: "Không thể đăng ký lúc này." },

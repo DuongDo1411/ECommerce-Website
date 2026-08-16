@@ -128,3 +128,30 @@ export function passwordResetMessage(
 export async function sendPasswordResetEmail(email: string, resetUrl: string) {
   await sendMail(passwordResetMessage(email, resetUrl));
 }
+
+/**
+ * Nội dung mail kích hoạt tài khoản cho luồng đăng ký trực tiếp bằng email/mật khẩu.
+ * Cùng lý do tách khỏi hàm gửi như passwordResetMessage: route đăng ký ghi payload này vào
+ * outbox trong cùng transaction với bản ghi PendingRegistration.
+ *
+ * Câu cuối không phải khách sáo. Bất kỳ ai cũng gõ được email của người khác vào form đăng
+ * ký, nên người nhận có thể chưa từng đăng ký; họ cần biết rằng bỏ qua là đủ, và bỏ qua thì
+ * không có tài khoản nào được tạo bằng địa chỉ của họ.
+ */
+export function accountActivationMessage(
+  email: string,
+  activationUrl: string,
+): MailMessage {
+  return {
+    to: email,
+    subject: "Kích hoạt tài khoản — MultiCart",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:8px">
+        <h2 style="color:#111">Kích hoạt tài khoản</h2>
+        <p style="color:#333">Nhấn nút dưới đây để hoàn tất đăng ký (hiệu lực 24 giờ):</p>
+        <p><a href="${activationUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Kích hoạt tài khoản</a></p>
+        <p style="color:#666;font-size:13px">Nếu bạn không đăng ký tài khoản MultiCart, hãy bỏ qua email này — sẽ không có tài khoản nào được tạo.</p>
+      </div>
+    `,
+  };
+}
