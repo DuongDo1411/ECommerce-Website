@@ -112,25 +112,14 @@ function Profile() {
     }
   };
 
-  const handleVerifyAgain = async () => {
-    if (!shopAddress || !shopName || !taxNumber) {
-      alert("Vui lòng điền đầy đủ thông tin cửa hàng");
-      return;
-    }
-    setLoading(true);
-    try {
-      await axios.post("/api/vendor/verifyagain", {
-        shopName,
-        shopAddress,
-        taxNumber,
-      });
-      alert("Cập nhật thông tin cửa hàng thành công");
-      router.push("/");
-    } catch {
-      alert("Cập nhật thông tin cửa hàng thất bại");
-    } finally {
-      setLoading(false);
-    }
+  /**
+   * Sửa hồ sơ cửa hàng đi qua form đầy đủ ở `/vendor/profile`.
+   *
+   * Ba trường ở đây không đủ: hồ sơ cần số điện thoại lấy hàng và địa chỉ có mã tỉnh, quận,
+   * phường của GHN, còn ô địa chỉ dạng chữ tự do thì không tạo được vận đơn.
+   */
+  const handleVerifyAgain = () => {
+    router.push("/vendor/profile");
   };
 
   const tabs = [
@@ -196,7 +185,7 @@ function Profile() {
 
               {user.role === "user" && (
                 <button
-                  onClick={() => router.push("/become-vendor")}
+                  onClick={() => router.push("/vendor/register")}
                   className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-200 text-sm font-semibold hover:bg-emerald-500/20 transition-all"
                 >
                   <FaShop size={16} />

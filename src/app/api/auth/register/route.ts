@@ -25,12 +25,49 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Ném từ trong transaction khi email đã có tài khoản thật; ánh xạ ra 409. */
 class AccountAlreadyExists extends Error {}
 
+/**
+ * Ném khi email đang có một bản ghi chờ CÒN HẠN của luồng khác — người mua đăng ký trong lúc
+ * một lượt đăng ký nhà bán cho cùng địa chỉ chưa kích hoạt, hoặc ngược lại.
+ *
+ * Không im lặng ghi đè: hai luồng tạo ra hai loại tài khoản khác nhau, nên xoay token của
+ * luồng kia vừa vô hiệu liên kết mà người đó đang cầm, vừa gửi cho họ một bức mail dẫn tới
+ * loại tài khoản không phải thứ họ đăng ký.
+ */
+class RegistrationIntentConflict extends Error {}
+
+/** Chuẩn hoá `intent` về loại tài khoản để so sánh; thiếu `intent` nghĩa là người mua. */
+const roleOfIntent = (intent: unknown) =>
+  intent === "vendor" ? "vendor" : "user";
+
+const INTENT_CONFLICT =
+  "Email này đang chờ kích hoạt cho một loại tài khoản khác. Hãy hoàn tất liên kết đã gửi, hoặc dùng email khác.";
+
 function isDuplicateKey(error: unknown): boolean {
   return (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
     (error as { code?: unknown }).code === 11000
+  );
+}
+
+/**
+ * Trùng khoá ĐÚNG ở `emailNormalized`, không phải ở một index nào khác.
+ *
+ * Phân biệt việc này là bắt buộc. `tokenHash` cũng là khoá duy nhất, và outbox có khoá
+ * `dedupeKey`; một va chạm ở đó là lỗi thật. Nếu gộp chung, ta sẽ trả lời "đã gửi liên kết
+ * kích hoạt" cho một lượt đăng ký chưa ghi được gì và chưa có bức mail nào — người dùng ngồi
+ * đợi vô ích, còn lỗi thật thì không ai thấy.
+ */
+function isEmailNormalizedDuplicate(error: unknown): boolean {
+  if (!isDuplicateKey(error)) return false;
+  const detail = error as {
+    keyPattern?: Record<string, unknown>;
+    keyValue?: Record<string, unknown>;
+  };
+  return (
+    detail.keyPattern?.emailNormalized !== undefined ||
+    detail.keyValue?.emailNormalized !== undefined
   );
 }
 
@@ -144,9 +181,16 @@ export async function POST(req: NextRequest) {
 
           if (existing) {
             if (existing.expiresAt.getTime() > now.getTime()) {
-              // Bản ghi chờ còn sống: chỉ xoay token. Không cho một lượt đăng ký thứ hai ghi
-              // đè tên và mật khẩu của lượt đầu — nếu cho, ai biết địa chỉ email của người
-              // khác cũng đặt được mật khẩu cho tài khoản sắp được tạo.
+              // Bản ghi chờ còn sống của LUỒNG KHÁC: dừng lại, không chạm gì. Người mua và
+              // nhà bán tạo ra hai loại tài khoản khác nhau, nên xoay token ở đây sẽ giết
+              // liên kết mà người kia đang cầm.
+              if (roleOfIntent(existing.intent) !== roleOfIntent(intent)) {
+                throw new RegistrationIntentConflict();
+              }
+
+              // Cùng luồng: chỉ xoay token. Không cho một lượt đăng ký thứ hai ghi đè tên và
+              // mật khẩu của lượt đầu — nếu cho, ai biết địa chỉ email của người khác cũng
+              // đặt được mật khẩu cho tài khoản sắp được tạo.
               effectiveEmail = existing.email;
               effectiveIntent = existing.intent;
             } else {
@@ -193,11 +237,39 @@ export async function POST(req: NextRequest) {
           { status: 409 },
         );
       }
+      if (txError instanceof RegistrationIntentConflict) {
+        return noStoreJson(
+          { code: "registration_intent_conflict", message: INTENT_CONFLICT },
+          { status: 409 },
+        );
+      }
       // Hai lượt đăng ký cùng email chạy song song: unique index cho đúng một bên thắng.
-      // Bên thua không ghi đè bản ghi của bên thắng và cũng không gửi thêm mail — liên kết
-      // của bên thắng đã trên đường tới đúng hộp thư đó, nên trả cùng thông điệp là đúng
-      // sự thật với người dùng.
-      if (isDuplicateKey(txError)) {
+      // Bên thua không ghi đè bản ghi của bên thắng và cũng không gửi thêm mail.
+      //
+      // Nhưng phải đọc xem bên thắng thuộc luồng nào. Cùng luồng thì liên kết của họ đã trên
+      // đường tới đúng hộp thư đó, nên trả 202 là đúng sự thật. Khác luồng thì không: người
+      // này đăng ký nhà bán mà bức mail đang bay tới lại là mail người mua, và nói "đã gửi
+      // liên kết" sẽ khiến họ bấm vào rồi nhận một loại tài khoản khác.
+      if (isEmailNormalizedDuplicate(txError)) {
+        // Session đã abort nên truy vấn này phải chạy ngoài transaction.
+        const winner = await PendingRegistration.findOne({ emailNormalized })
+          .select("intent expiresAt")
+          .lean<{ intent?: "vendor"; expiresAt: Date } | null>();
+
+        // Không tìm được bên thắng, hoặc bản ghi của nó đã hết hạn: không có liên kết nào
+        // đang trên đường tới hộp thư đó. Ném lại để thành 500 — nói "đã gửi" lúc này là nói
+        // dối, và người dùng sẽ đợi một bức mail không tồn tại.
+        if (!winner || winner.expiresAt.getTime() <= now.getTime()) {
+          throw txError;
+        }
+
+        if (roleOfIntent(winner.intent) !== roleOfIntent(intent)) {
+          return noStoreJson(
+            { code: "registration_intent_conflict", message: INTENT_CONFLICT },
+            { status: 409 },
+          );
+        }
+
         console.warn("[register] đăng ký đồng thời, giữ bản ghi thắng");
         return noStoreJson(
           { message: "Đã gửi liên kết kích hoạt tới email của bạn." },

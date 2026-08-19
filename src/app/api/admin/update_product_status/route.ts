@@ -1,5 +1,7 @@
 import connectDB from "@/lib/connectDB";
 import { requireRole } from "@/lib/rbac";
+import { isVendorSellable } from "@/lib/sellable";
+import { VENDOR_CODES } from "@/lib/vendorGate";
 import Product from "@/model/product.model";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -19,6 +21,20 @@ export async function POST(req: NextRequest) {
     const product = await Product.findById(productId);
     if (!product) {
       return NextResponse.json({ message: "Product not found" }, { status: 404 });
+    }
+
+    // Duyệt sản phẩm là hành động đưa nó lên các bề mặt công khai, nên cửa hàng sở hữu nó
+    // cũng phải đang được duyệt. Thiếu bước này thì quản trị viên có thể vô tình mở bán cho
+    // một cửa hàng đang chờ xét hoặc đã bị từ chối.
+    if (status === "approved" && !(await isVendorSellable(product.vendor))) {
+      return NextResponse.json(
+        {
+          code: VENDOR_CODES.notSellable,
+          message:
+            "Cửa hàng sở hữu sản phẩm này chưa được duyệt, nên chưa thể duyệt sản phẩm.",
+        },
+        { status: 409 },
+      );
     }
 
     if (status === "approved") {

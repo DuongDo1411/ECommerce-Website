@@ -40,6 +40,21 @@ function VendorApproval() {
   const [search, setSearch] = useState("");
   const [rejectedReason, setRejectedReason] = useState("");
 
+  /**
+   * Tải lại danh sách hồ sơ.
+   *
+   * Cần thiết khi server trả về xung đột phiên bản: dữ liệu trên màn hình đã cũ, nên giữ
+   * nguyên nó chỉ khiến quản trị viên bấm lại và hỏng lại đúng như vậy.
+   */
+  const reloadVendors = async () => {
+    try {
+      const res = await axios.get("/api/admin/vendors");
+      dispatch(setAllVendorData(res.data.vendors ?? []));
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   const searchTerm = search.trim().toLowerCase();
   const filteredVendors = pendingVendors.filter((vendor) => {
     if (!searchTerm) return true;
@@ -66,6 +81,28 @@ function VendorApproval() {
     setRejectedReason("");
   };
 
+  /**
+   * Xử lý lỗi của một lượt duyệt/từ chối.
+   *
+   * Xung đột phiên bản không phải lỗi của quản trị viên, nên nói rõ hồ sơ đã đổi và tải lại
+   * danh sách; đóng luôn hộp thoại để họ không bấm tiếp trên dữ liệu cũ.
+   */
+  const handleActionError = async (error: unknown, fallback: string) => {
+    const data = axios.isAxiosError<{ code?: string; message?: string }>(error)
+      ? error.response?.data
+      : undefined;
+
+    if (data?.code === "vendor_profile_changed") {
+      setSelectedVendor(null);
+      setStep("detail");
+      await reloadVendors();
+      alert(data.message ?? "Hồ sơ đã thay đổi, danh sách vừa được tải lại.");
+      return;
+    }
+
+    alert(data?.message ?? fallback);
+  };
+
   const handleApproved = async () => {
     if (!selectedVendor) return;
     setLoading(true);
@@ -73,6 +110,8 @@ function VendorApproval() {
       await axios.post("/api/admin/update_vendor_status", {
         vendorId: selectedVendor?._id,
         status: "approved",
+        // Thẻ phiên bản của hồ sơ đang hiển thị. Server chỉ ghi khi nó còn khớp.
+        expectedUpdatedAt: selectedVendor?.updatedAt,
       });
       const updated = allVendorsData.filter(
         (v) => v._id !== selectedVendor?._id,
@@ -86,7 +125,7 @@ function VendorApproval() {
     } catch (error) {
       console.log(error);
       setLoading(false);
-      alert("Approval Failed");
+      await handleActionError(error, "Duyệt hồ sơ thất bại");
     }
   };
 
@@ -98,6 +137,7 @@ function VendorApproval() {
         vendorId: selectedVendor?._id,
         status: "rejected",
         rejectedReason,
+        expectedUpdatedAt: selectedVendor?.updatedAt,
       });
       const updated = allVendorsData.filter(
         (v) => v._id !== selectedVendor?._id,
@@ -111,7 +151,7 @@ function VendorApproval() {
     } catch (error) {
       console.log(error);
       setLoading(false);
-      alert("Rejected Failed");
+      await handleActionError(error, "Từ chối hồ sơ thất bại");
     }
   };
 

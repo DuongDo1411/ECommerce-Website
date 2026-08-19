@@ -1,40 +1,22 @@
 "use client";
 import { IUser } from "@/model/user.model";
-import React, { useState } from "react";
+import React from "react";
 import VendorDashBoard from "./VendorDashBoard";
-import axios from "axios";
 import { useRouter } from "next/navigation";
-import { ClipLoader } from "react-spinners";
 
 function VendorPage({ user }: { user: IUser }) {
-  const [openVerifyform, setOpenVerifyform] = useState(false);
-  const [shopName, setShopName] = useState(user?.shopName || "");
-  const [shopAddress, setShopAddress] = useState(user?.shopAddress || "");
-  const [taxNumber, setTaxNumber] = useState(user?.taxNumber || "");
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleVerifyAgain = async () => {
-    if (!shopAddress || !shopName || !taxNumber) {
-      alert("Fill all fields");
-      return;
-    }
-    setLoading(true);
-    try {
-      const result = await axios.post("/api/vendor/verifyagain", {
-        shopName,
-        shopAddress,
-        taxNumber,
-      });
-      console.log(result.data);
-      setLoading(false);
-      alert("Verifycation request sent again ✅");
-      router.push("/");
-    } catch (error) {
-      console.log(error);
-      setLoading(false);
-      alert("Fail to send verification ❌");
-    }
+  /**
+   * Gửi lại hồ sơ đi qua form đầy đủ, không gửi từ đây.
+   *
+   * Trước đây nút này POST thẳng ba trường tên shop, địa chỉ dạng chữ tự do và mã số thuế.
+   * Địa chỉ như vậy không dùng được cho GHN — vận đơn cần mã tỉnh, quận, phường — và hồ sơ
+   * cũng thiếu số điện thoại lấy hàng. Server giờ từ chối một payload như thế, nên đúng chỗ
+   * để gửi lại là form khai hồ sơ.
+   */
+  const handleVerifyAgain = () => {
+    router.push("/vendor/profile");
   };
   if (!user) {
     return (
@@ -207,57 +189,16 @@ function VendorPage({ user }: { user: IUser }) {
             </span>
           </div>
 
-          {/* Action Buttons */}
-          {!openVerifyform ? (
-            <button
-              onClick={() => setOpenVerifyform(true)}
-              className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg font-semibold"
-            >
-              Verify Again
-            </button>
-          ) : (
-            <div className="mt-6 text-left space-y-4">
-              <input
-                type="text"
-                placeholder="Shop Name"
-                className="w-full p-3 rounded bg-white/10 border border-white/20"
-                onChange={(e) => setShopName(e.target.value)}
-                value={shopName}
-              />
-              <input
-                type="text"
-                placeholder="Shop Address"
-                className="w-full p-3 rounded bg-white/10 border border-white/20"
-                onChange={(e) => setShopAddress(e.target.value)}
-                value={shopAddress}
-              />
-              <input
-                type="text"
-                placeholder="Tax Number"
-                className="w-full p-3 rounded bg-white/10 border border-white/20"
-                onChange={(e) => setTaxNumber(e.target.value)}
-                value={taxNumber}
-              />
-
-              <button
-                disabled={loading}
-                onClick={handleVerifyAgain}
-                className="w-full bg-green-600 hover:bg-green-700 py-3 rounded-lg font-semibold"
-              >
-                {loading ? (
-                  <ClipLoader size={15} color="white" />
-                ) : (
-                  "Submit & Verify again"
-                )}
-              </button>
-              <button
-                onClick={() => setOpenVerifyform(false)}
-                className="w-full bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-semibold"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
+          {/* Ba ô nhập tại chỗ đã được bỏ. Chúng thu tên shop, địa chỉ dạng chữ tự do và mã
+              số thuế, nhưng hồ sơ còn cần số điện thoại lấy hàng và địa chỉ có mã tỉnh, quận,
+              phường của GHN. Gửi thiếu thì server từ chối, nên đưa thẳng người dùng tới form
+              khai hồ sơ đầy đủ. */}
+          <button
+            onClick={handleVerifyAgain}
+            className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg font-semibold"
+          >
+            Sửa hồ sơ và gửi lại
+          </button>
 
           {/* Footer Info */}
           <div className="mt-8 space-y-2">

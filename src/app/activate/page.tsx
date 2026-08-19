@@ -13,7 +13,7 @@ import {
   resolveFragmentSecret,
 } from "@/lib/security/fragmentSecret";
 
-type Phase = "working" | "done" | "invalid" | "retryable";
+type Phase = "working" | "done" | "invalid" | "taken" | "retryable";
 
 const INVALID_MESSAGE = "Liên kết không hợp lệ hoặc đã hết hạn.";
 
@@ -33,8 +33,12 @@ export default function ActivatePage() {
 
   // Đọc trong effect thay vì dùng useSearchParams(): hook đó buộc trang phải nằm trong một
   // Suspense boundary khi được prerender, còn trang này không cần tới điều đó cho một tham
-  // số chỉ ảnh hưởng tới đích của nút Đăng nhập.
+  // số chỉ ảnh hưởng tới đích của mấy cái nút.
+  //
+  // `intent` ở đây CHỈ chọn đường dẫn hiển thị. Loại tài khoản được tạo do bản ghi chờ phía
+  // server quyết định, không do query string này.
   const [loginHref, setLoginHref] = useState("/login");
+  const [registerHref, setRegisterHref] = useState("/register");
 
   /**
    * Gửi một lượt kích hoạt. Dùng chung cho lần tự gửi đầu tiên và cho nút "thử lại", nên hai
@@ -78,6 +82,17 @@ export default function ActivatePage() {
       return;
     }
 
+    // Email đã thuộc về một tài khoản khác loại. Không mời gửi lại liên kết: bản ghi chờ đã
+    // bị dọn và địa chỉ đó không còn dùng được cho luồng này nữa.
+    if (outcome === "taken") {
+      setPhase("taken");
+      setMessage(
+        serverMessage ??
+          "Email này vừa được dùng để tạo một tài khoản khác. Vui lòng đăng ký lại bằng email khác.",
+      );
+      return;
+    }
+
     if (outcome === "invalid") {
       setPhase("invalid");
       setMessage(serverMessage ?? INVALID_MESSAGE);
@@ -99,7 +114,8 @@ export default function ActivatePage() {
     startedRef.current = true;
 
     if (new URLSearchParams(window.location.search).get("intent") === "vendor") {
-      setLoginHref("/login?callbackUrl=%2Fbecome-vendor");
+      setLoginHref("/vendor/login");
+      setRegisterHref("/vendor/register");
     }
 
     tokenRef.current = resolveFragmentSecret(
@@ -152,6 +168,11 @@ export default function ActivatePage() {
     }
   }, [email]);
 
+  const primaryButton =
+    "w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-semibold";
+  const secondaryButton =
+    "w-full py-3 bg-white/5 border border-white/10 rounded-xl font-medium text-gray-200";
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white p-6">
       <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-2xl p-8">
@@ -161,7 +182,7 @@ export default function ActivatePage() {
         {phase === "done" && (
           <button
             onClick={() => router.push(loginHref)}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-semibold"
+            className={primaryButton}
           >
             Đăng nhập
           </button>
@@ -172,15 +193,32 @@ export default function ActivatePage() {
           <div className="space-y-3">
             <button
               onClick={() => void submitActivation()}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-semibold"
+              className={primaryButton}
             >
               Thử kích hoạt lại
             </button>
             <button
               onClick={() => router.push(loginHref)}
-              className="w-full py-3 bg-white/5 border border-white/10 rounded-xl font-medium text-gray-200"
+              className={secondaryButton}
             >
               Đã kích hoạt rồi? Đăng nhập
+            </button>
+          </div>
+        )}
+
+        {phase === "taken" && (
+          <div className="space-y-3">
+            <button
+              onClick={() => router.push(registerHref)}
+              className={primaryButton}
+            >
+              Đăng ký lại bằng email khác
+            </button>
+            <button
+              onClick={() => router.push(loginHref)}
+              className={secondaryButton}
+            >
+              Về trang đăng nhập
             </button>
           </div>
         )}
@@ -198,14 +236,14 @@ export default function ActivatePage() {
             <button
               onClick={resend}
               disabled={resending}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-semibold disabled:opacity-60"
+              className={`${primaryButton} disabled:opacity-60`}
             >
               {resending ? "Đang gửi…" : "Gửi lại liên kết kích hoạt"}
             </button>
             {resendNote && <p className="text-sm text-gray-400">{resendNote}</p>}
             <button
               onClick={() => router.push(loginHref)}
-              className="w-full py-3 bg-white/5 border border-white/10 rounded-xl font-medium text-gray-200"
+              className={secondaryButton}
             >
               Đã kích hoạt rồi? Đăng nhập
             </button>

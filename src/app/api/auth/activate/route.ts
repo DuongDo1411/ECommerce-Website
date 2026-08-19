@@ -19,8 +19,20 @@ const TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
 // một kênh dò xem địa chỉ email nào đang có bản ghi chờ.
 const INVALID = "Liên kết không hợp lệ hoặc đã hết hạn.";
 
+// Người bấm liên kết này đã chứng minh mình đọc được hộp thư, nên nói thẳng lý do ở đây không
+// tạo kênh dò tài khoản — còn nếu không nói thẳng, họ mất hồ sơ mà không hiểu vì sao.
+const EMAIL_TAKEN =
+  "Email này vừa được dùng để tạo một tài khoản khác. Vui lòng đăng ký lại bằng email khác.";
+
 /** Kết quả của một lượt kích hoạt ĐÃ COMMIT; response chỉ được dựng từ giá trị này. */
-type Outcome = "activated" | "invalid";
+type Outcome = "activated" | "invalid" | "email_taken";
+
+/** Loại tài khoản mà bản ghi chờ yêu cầu tạo. */
+type WantedRole = "user" | "vendor";
+
+function wantedRoleOf(intent: unknown): WantedRole {
+  return intent === "vendor" ? "vendor" : "user";
+}
 
 function isDuplicateKey(error: unknown): boolean {
   return (
@@ -33,7 +45,10 @@ function isDuplicateKey(error: unknown): boolean {
 
 /**
  * Kích hoạt tài khoản từ liên kết trong mail đăng ký. Đây là nơi DUY NHẤT tạo tài khoản cho
- * luồng đăng ký trực tiếp bằng email và mật khẩu.
+ * luồng đăng ký trực tiếp bằng email và mật khẩu, cho cả người mua và nhà bán.
+ *
+ * Loại tài khoản đến từ `intent` của BẢN GHI CHỜ, không từ query string: query nằm trong tay
+ * người bấm liên kết, còn bản ghi chờ do server ghi lúc đăng ký.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -71,17 +86,18 @@ export async function POST(req: NextRequest) {
 
     const tokenHash = hashToken(rawToken);
 
-    // Đọc trước bản ghi chờ CHỈ để giữ lại `_id` và `emailNormalized` cho nhánh phục hồi bên
-    // dưới. Khi transaction abort vì trùng khoá, mọi thứ đọc trong session đó bị cuốn theo,
-    // mà lúc ấy vẫn cần biết identity nào vừa va chạm.
+    // Đọc trước bản ghi chờ CHỈ để giữ lại `_id`, `emailNormalized` và `intent` cho nhánh phục
+    // hồi bên dưới. Khi transaction abort vì trùng khoá, mọi thứ đọc trong session đó bị cuốn
+    // theo, mà lúc ấy vẫn cần biết identity nào vừa va chạm và nó đòi loại tài khoản nào.
     //
     // Lần đọc này KHÔNG quyết định token hợp lệ hay không: nó không kiểm hạn dùng và có thể
     // cũ ngay khi vừa đọc xong. Thẩm quyền duy nhất là phép claim nguyên tử trong transaction.
     const precheck = await PendingRegistration.findOne({ tokenHash })
-      .select("_id emailNormalized")
+      .select("_id emailNormalized intent")
       .lean<{
         _id: mongoose.Types.ObjectId;
         emailNormalized: string;
+        intent?: "vendor";
       } | null>();
 
     let outcome: Outcome;
@@ -111,16 +127,30 @@ export async function POST(req: NextRequest) {
 
         if (!claimed) return "invalid";
 
-        // Google OAuth có thể đã tạo tài khoản cho chính email này trong lúc chờ. Khi đó bản
-        // ghi chờ vừa bị xoá ở trên là đúng việc cần làm, nhưng KHÔNG được gắn mật khẩu của
-        // lượt đăng ký vào một tài khoản Google đang tồn tại.
+        const wantedRole = wantedRoleOf(claimed.intent);
+
+        // Email có thể đã bị chiếm trong lúc chờ: Google tạo tài khoản người mua ngay khi
+        // đăng nhập, và một lượt kích hoạt khác cũng có thể đã xong trước.
         const owner = await User.findOne(
           emailIdentityFilter(claimed.emailNormalized),
         )
-          .select("_id")
+          .select("_id role")
           .session(dbSession);
 
-        if (owner) return "activated";
+        if (owner) {
+          // Cùng loại tài khoản thì coi như đã kích hoạt xong — bấm liên kết hai lần, hoặc
+          // hai lượt kích hoạt đua nhau. KHÔNG gắn mật khẩu của lượt đăng ký vào tài khoản
+          // đang tồn tại: nó có thể là tài khoản Google không có mật khẩu.
+          if (owner.role === wantedRole) return "activated";
+
+          // Khác loại thì đây KHÔNG phải thành công. Người đăng ký nhà bán mà email bị một
+          // tài khoản người mua chiếm sẽ chẳng có tài khoản nhà bán nào, nên báo thành công
+          // là nói dối họ. Bản ghi chờ đã bị xoá ở trên và phép xoá đó được commit, để lần
+          // bấm sau không nhận lại đúng một lỗi cũ.
+          //
+          // Tuyệt đối không sửa tài khoản đang tồn tại: nó thuộc về một luồng khác.
+          return "email_taken";
+        }
 
         // Trùng khoá ở đây KHÔNG được bắt tại chỗ. Sau lỗi ghi đầu tiên, transaction đã hỏng
         // và mọi truy vấn tiếp theo trên cùng session đều bị từ chối, nên một lần "kiểm tra
@@ -133,12 +163,18 @@ export async function POST(req: NextRequest) {
               email: claimed.email,
               emailNormalized: claimed.emailNormalized,
               password: claimed.passwordHash,
-              role: "user",
+              role: wantedRole,
               sessionVersion: 0,
               twoFactorEnabled: false,
               // Khẳng định đúng sự thật lần đầu tiên: người dùng vừa chứng minh quyền sở hữu
               // hộp thư bằng cách bấm liên kết gửi tới chính địa chỉ đó.
               emailVerifiedAt: new Date(),
+              // Nhà bán mới chưa khai hồ sơ nào nên chưa có gì để duyệt. Phải đặt "draft"
+              // TƯỜNG MINH: schema mặc định `verificationStatus` là "pending", nên bỏ trống
+              // sẽ đẩy một hồ sơ rỗng vào thẳng hàng chờ của quản trị viên.
+              ...(wantedRole === "vendor"
+                ? { verificationStatus: "draft" as const, isApproved: false }
+                : {}),
             },
           ],
           { session: dbSession },
@@ -147,25 +183,36 @@ export async function POST(req: NextRequest) {
         return "activated";
       });
     } catch (txError) {
-      // Đường duy nhất tới đây mà vẫn coi là thành công: Google vừa tạo tài khoản cho chính
-      // email này trong khe giữa lần kiểm chủ sở hữu và lệnh ghi. Transaction đã rollback
-      // sạch, kể cả phép xoá bản ghi chờ.
+      // Đường duy nhất tới đây mà vẫn coi là thành công: một lượt khác vừa tạo đúng tài khoản
+      // này trong khe giữa lần kiểm chủ sở hữu và lệnh ghi. Transaction đã rollback sạch, kể
+      // cả phép xoá bản ghi chờ.
       if (!isDuplicateKey(txError) || !precheck) throw txError;
 
-      // Chỉ nhận khi trùng khoá đúng là identity này. Một duplicate ở khoá khác là lỗi thật
-      // và phải thành 500, không được nuốt thành "kích hoạt thành công".
+      // Chỉ nhận khi trùng khoá đúng là identity này VÀ đúng loại tài khoản mà bản ghi chờ
+      // yêu cầu. Một duplicate ở khoá khác, hoặc một tài khoản khác loại, là chuyện khác hẳn
+      // và không được nuốt thành "kích hoạt thành công".
       const raced = await User.findOne(
         emailIdentityFilter(precheck.emailNormalized),
-      ).select("_id");
+      ).select("_id role");
       if (!raced) throw txError;
 
       // Dọn bản ghi chờ vừa được rollback. Lọc kèm `tokenHash` để không xoá nhầm bản ghi đã
       // được "gửi lại" cấp token mới: cùng `_id` nhưng mang token khác, và người dùng vẫn
       // đang cầm liên kết mới đó trong hộp thư.
       await PendingRegistration.deleteOne({ _id: precheck._id, tokenHash });
-      outcome = "activated";
+      outcome =
+        raced.role === wantedRoleOf(precheck.intent)
+          ? "activated"
+          : "email_taken";
     } finally {
       await dbSession.endSession();
+    }
+
+    if (outcome === "email_taken") {
+      return noStoreJson(
+        { code: "email_taken", message: EMAIL_TAKEN },
+        { status: 409 },
+      );
     }
 
     if (outcome !== "activated") {

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import User from "@/model/user.model";
+import { APPROVED_VENDOR_FILTER } from "@/lib/vendorGate";
 import Product from "@/model/product.model";
 import { notFound, redirect } from "next/navigation";
 import Navbar from "@/app/component/Navbar";
@@ -50,9 +51,8 @@ export default async function ShopDetailPage({
   if (!currentUser) redirect("/login");
 
   const vendor = await User.findOne({
+    ...APPROVED_VENDOR_FILTER,
     _id: shopId,
-    role: "vendor",
-    isApproved: true,
   })
     .select("_id name shopName image shopBackground vendorReviews")
     .populate({ path: "vendorReviews.user", select: "name image", strictPopulate: false })

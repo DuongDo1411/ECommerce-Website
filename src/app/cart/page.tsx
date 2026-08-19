@@ -38,6 +38,9 @@ interface CartItem {
   };
   quantity: number;
   size?: string;
+  /** Server tính: sản phẩm còn bán được và cửa hàng còn được duyệt hay không. */
+  purchasable?: boolean;
+  unpurchasableReason?: string;
 }
 
 export default function CartPage() {
@@ -238,6 +241,10 @@ export default function CartPage() {
   };
 
   /* ── Tính tổng ── */
+  // Sản phẩm không mua được vẫn nằm trong giỏ để người dùng tự xoá, nhưng chặn thanh toán:
+  // server sẽ từ chối ở bước đặt hàng, nên để bấm được chỉ là đẩy lỗi xuống muộn hơn.
+  const blockedItem = cart.find((item) => item.purchasable === false);
+
   const subtotal = cart.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
     0,
@@ -618,7 +625,8 @@ export default function CartPage() {
                 checkingOut ||
                 !selectedAddress ||
                 feeLoading ||
-                ghnFee === null
+                ghnFee === null ||
+                blockedItem !== undefined
               }
               onClick={() => {
                 setCheckingOut(true);
@@ -631,6 +639,9 @@ export default function CartPage() {
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Đang xử lý...
                 </span>
+              ) : blockedItem ? (
+                (blockedItem.unpurchasableReason ??
+                "Có sản phẩm không còn bán")
               ) : !selectedAddress ? (
                 "Cần địa chỉ giao hàng"
               ) : feeLoading ? (

@@ -22,6 +22,13 @@ describe("phân loại phản hồi kích hoạt", () => {
     expect(classifyActivationStatus(429)).toBe("retryable");
   });
 
+  // 409 phải tách khỏi 400. Cả hai đều làm token chết, nhưng 400 thì xin liên kết mới là cứu
+  // được, còn 409 thì email đã thuộc về một tài khoản khác loại — mời gửi lại là mời người
+  // dùng làm một việc chắc chắn thất bại.
+  it("409 là email đã bị tài khoản khác loại chiếm, không phải token sai", () => {
+    expect(classifyActivationStatus(409)).toBe("taken");
+  });
+
   it("5xx là lỗi phía máy chủ, token vẫn nguyên", () => {
     expect(classifyActivationStatus(500)).toBe("retryable");
     expect(classifyActivationStatus(503)).toBe("retryable");
@@ -33,13 +40,13 @@ describe("phân loại phản hồi kích hoạt", () => {
 });
 
 describe("quyết định giữ hay vứt token", () => {
-  it("vứt với 400 và với 2xx", () => {
-    expect(shouldDiscardActivationToken(classifyActivationStatus(400))).toBe(
-      true,
-    );
-    expect(shouldDiscardActivationToken(classifyActivationStatus(200))).toBe(
-      true,
-    );
+  it("vứt với 400, 409 và 2xx", () => {
+    for (const status of [400, 409, 200]) {
+      expect(
+        shouldDiscardActivationToken(classifyActivationStatus(status)),
+        String(status),
+      ).toBe(true);
+    }
   });
 
   it("giữ với 429, 500 và lỗi mạng", () => {

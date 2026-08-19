@@ -2,6 +2,7 @@
 // nên test được độc lập (xem retrieval.test.ts).
 
 import connectDB from "@/lib/connectDB";
+import { approvedVendorIds } from "@/lib/sellable";
 import Product from "@/model/product.model";
 import Order from "@/model/order.model";
 // Order.returnRequest là ref tới model này; phải đăng ký schema trước khi populate,
@@ -53,11 +54,14 @@ export async function searchProducts(
   // `stock` được đồng bộ = tổng sizeStock lúc tạo/sửa sản phẩm (xem
   // vendor/addProduct và vendor/editProduct), nên áp dụng chung được cho cả
   // sản phẩm isWearable lẫn không.
+  // Nhà bán cũng phải đang được duyệt. Thiếu điều kiện này thì trợ lý vẫn giới thiệu sản
+  // phẩm của một shop đang bị tạm ngưng, và khách bấm vào sẽ không đặt được hàng.
   const filter: Record<string, unknown> = {
     isActive: true,
     verificationStatus: "approved",
     isStockAvailable: { $ne: false },
     stock: { $gt: 0 },
+    vendor: { $in: await approvedVendorIds() },
   };
 
   if (args.keywords && args.keywords.trim()) {

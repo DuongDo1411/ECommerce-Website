@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
         const user = await User.findOne(
           emailIdentityFilter(record.emailNormalized),
         )
-          .select("email")
+          .select("email role")
           .session(dbSession);
         if (!user?.email) throw new Error("Reset-token account no longer exists");
 
@@ -125,7 +125,12 @@ export async function POST(req: NextRequest) {
           { session: dbSession },
         );
 
-        return { id: user._id.toString(), email: user.email, outboxId };
+        return {
+          id: user._id.toString(),
+          email: user.email,
+          role: typeof user.role === "string" ? user.role : "user",
+          outboxId,
+        };
       });
     } finally {
       await dbSession.endSession();
@@ -135,6 +140,7 @@ export async function POST(req: NextRequest) {
     const changed = changedUser as {
       id: string;
       email: string;
+      role: string;
       outboxId: mongoose.Types.ObjectId;
     };
     disconnectUserSockets(changed.id);
@@ -144,8 +150,13 @@ export async function POST(req: NextRequest) {
       await flushOne(changed.outboxId);
     });
 
+    // Trả về role để trang đổi mật khẩu đưa người dùng về ĐÚNG cổng đăng nhập. Người gọi đã
+    // chứng minh đọc được hộp thư bằng một token hợp lệ, nên đây không phải kênh dò tài khoản.
     return noStoreJson(
-      { message: "Đặt lại mật khẩu thành công. Vui lòng đăng nhập." },
+      {
+        message: "Đặt lại mật khẩu thành công. Vui lòng đăng nhập.",
+        role: changed.role,
+      },
       { status: 200 },
     );
   } catch (error) {

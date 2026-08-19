@@ -40,6 +40,23 @@ function must<T>(
   return value as Exclude<T, null | undefined>;
 }
 
+/**
+ * Nhà bán đã được duyệt cho VENDOR_ID.
+ *
+ * Bắt buộc phải có: luồng mua giờ kiểm cả trạng thái của nhà bán sở hữu sản phẩm, nên một
+ * ObjectId trần không có document tương ứng đồng nghĩa với "cửa hàng không được phép bán".
+ */
+async function seedApprovedVendor() {
+  await User.create({
+    _id: VENDOR_ID,
+    name: "Vendor",
+    email: `vendor-${VENDOR_ID.toString()}@example.com`,
+    role: "vendor",
+    verificationStatus: "approved",
+    isApproved: true,
+  });
+}
+
 let emailSeq = 0;
 async function seedBuyer(qty: number, productId: mongoose.Types.ObjectId) {
   emailSeq += 1;
@@ -76,6 +93,7 @@ async function seedProduct(stock: number, price = 100_000) {
     stock,
     isStockAvailable: true,
     vendor: VENDOR_ID,
+    verificationStatus: "approved",
     image1: "a",
     image2: "b",
     image3: "c",
@@ -105,7 +123,8 @@ afterAll(async () => {
   await replset.stop();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  await seedApprovedVendor();
   mocks.computeFeesByVendor.mockResolvedValue({
     feesByVendor: [
       { vendorId: VENDOR_ID.toString(), fee: FEE, serviceId: 53320, isFreeDelivery: false },
@@ -375,6 +394,7 @@ async function quoteTotal(
       stock: 0,
       isStockAvailable: true,
       vendor: VENDOR_ID,
+      verificationStatus: "approved",
       image1: "a",
       image2: "b",
       image3: "c",

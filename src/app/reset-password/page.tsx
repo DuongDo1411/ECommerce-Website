@@ -3,6 +3,7 @@
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { loginForRole } from "@/lib/roleRoutes";
 import {
   PASSWORD_RESET_TOKEN_STORAGE_KEY,
   resolveFragmentSecret,
@@ -46,14 +47,17 @@ export default function ResetPasswordPage() {
     setLoading(true);
     setMsg("");
     try {
-      await axios.post("/api/auth/reset-password", {
+      const res = await axios.post("/api/auth/reset-password", {
         token: tokenRef.current,
         newPassword,
       });
       tokenRef.current = "";
       window.sessionStorage.removeItem(PASSWORD_RESET_TOKEN_STORAGE_KEY);
       setMsg("Đặt lại mật khẩu thành công! Đang chuyển tới đăng nhập…");
-      setTimeout(() => router.push("/login"), 1200);
+      // Mỗi role đăng nhập ở một cổng riêng. Đẩy tất cả về `/login` nghĩa là nhà bán vừa đặt lại
+      // mật khẩu xong lại bị đưa tới đúng cái cổng từ chối tài khoản của họ.
+      const target = loginForRole((res.data as { role?: unknown })?.role);
+      setTimeout(() => router.push(target), 1200);
     } catch (err) {
       setMsg(
         axios.isAxiosError<{ message?: string }>(err)

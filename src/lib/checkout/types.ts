@@ -47,6 +47,8 @@ export type CheckoutErrorCode =
   | "cart_changed"
   | "insufficient_stock"
   | "voucher_unavailable"
+  // Sản phẩm hoặc cửa hàng không còn ở trạng thái bán được, phát hiện ngay trước khi ghi đơn.
+  | "vendor_not_sellable"
   | "checkout_closed";
 
 // Lỗi nghiệp vụ checkout có status HTTP + payload đi kèm, để route map thẳng ra

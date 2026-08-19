@@ -7,7 +7,7 @@
  * luận nó chết thì trang mời người dùng bấm lại một thứ không bao giờ chạy được.
  */
 
-export type ActivationOutcome = "activated" | "invalid" | "retryable";
+export type ActivationOutcome = "activated" | "invalid" | "taken" | "retryable";
 
 /**
  * `status` là null khi request không nhận được phản hồi nào — mạng đứt, timeout, DNS hỏng.
@@ -21,6 +21,9 @@ export function classifyActivationStatus(
   if (status === null) return "retryable";
   if (status >= 200 && status < 300) return "activated";
   if (status === 429) return "retryable";
+  // 409 nghĩa là email đã bị một tài khoản khác loại chiếm. Token chết hẳn, và gửi lại không
+  // cứu được: người dùng phải đăng ký lại bằng email khác.
+  if (status === 409) return "taken";
   if (status >= 400 && status < 500) return "invalid";
   return "retryable";
 }

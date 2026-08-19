@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 
@@ -59,6 +59,24 @@ describe("assistant retrieval (data scoping)", () => {
   afterAll(async () => {
     await mongoose.disconnect();
     await replset.stop();
+  });
+
+  /**
+   * Nhà bán đã được duyệt cho VENDOR_ID.
+   *
+   * Trợ lý giờ chỉ giới thiệu sản phẩm của cửa hàng đang được duyệt, nên một ObjectId trần
+   * không có document tương ứng đồng nghĩa với "cửa hàng không được phép bán" và mọi sản
+   * phẩm của nó bị lọc khỏi kết quả.
+   */
+  beforeEach(async () => {
+    await User.create({
+      _id: VENDOR_ID,
+      name: "Vendor",
+      email: "vendor@example.com",
+      role: "vendor",
+      verificationStatus: "approved",
+      isApproved: true,
+    });
   });
 
   afterEach(async () => {

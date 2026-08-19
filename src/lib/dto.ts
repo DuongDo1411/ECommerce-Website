@@ -36,7 +36,7 @@ export interface CurrentUserDTO extends NavUserDTO {
   shopBackground?: string;
   taxNumber?: string;
   isApproved: boolean;
-  verificationStatus: "pending" | "approved" | "rejected";
+  verificationStatus: "draft" | "pending" | "approved" | "rejected";
   rejectedReason?: string;
   twoFactorEnabled: boolean;
   hasPassword: boolean;
@@ -156,7 +156,11 @@ export function toCurrentUserDTO(
   const gender = user.gender === "male" || user.gender === "female"
     ? user.gender
     : undefined;
+  // "draft" phải đi qua nguyên vẹn. Quy nó về "pending" nghĩa là một nhà bán vừa kích hoạt,
+  // chưa khai hồ sơ nào, lại hiện ra như đang chờ quản trị viên duyệt: giao diện mời họ ngồi
+  // đợi một hồ sơ không tồn tại, còn quản trị viên thấy một mục rỗng trong hàng chờ.
   const verificationStatus =
+    user.verificationStatus === "draft" ||
     user.verificationStatus === "approved" ||
     user.verificationStatus === "rejected"
       ? user.verificationStatus

@@ -8,7 +8,7 @@ import { FaRobot, FaTimes } from "react-icons/fa";
 import AssistantPanel from "@/app/component/Assistant/AssistantPanel";
 
 // Ẩn trên các khu vực không phải luồng mua sắm của người mua — cổng admin/vendor
-// riêng, các trang xác thực, onboarding vendor và trang thêm sản phẩm.
+// riêng, các trang xác thực, kích hoạt tài khoản và trang thêm sản phẩm.
 const HIDDEN_PREFIXES = [
   "/admin",
   "/vendor",
@@ -16,7 +16,7 @@ const HIDDEN_PREFIXES = [
   "/register",
   "/forgot-password",
   "/reset-password",
-  "/become-vendor",
+  "/activate",
   "/addVendorProduct",
 ];
 

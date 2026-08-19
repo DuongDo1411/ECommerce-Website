@@ -61,6 +61,7 @@ describe("proxy routes unauthenticated visitors to the matching portal", () => {
       "/login",
       "/register",
       "/vendor/login",
+      "/vendor/register",
       "/admin/login",
       "/forgot-password",
       "/reset-password",
@@ -210,5 +211,21 @@ describe("proxy keeps CSRF and auth intact for everything else", () => {
     const res = await proxy(postFor("/api/webhooks/resend"));
     expect(res.status).not.toBe(403);
     expect(res.status).not.toBe(401);
+  });
+});
+
+// Danh sách nhà bán từng nằm trong PUBLIC_API_PREFIXES và trả về email, số điện thoại, mã số
+// thuế cùng địa chỉ kho của mọi nhà bán cho bất kỳ ai gọi tới. Test này chốt rằng nó đã đóng,
+// vì mở lại chỉ cần thêm đúng một dòng và không có gì báo động.
+describe("proxy khong con mo du lieu nha ban cho khach", () => {
+  it("chan khach chua dang nhap goi /api/vendor/AllVendor", async () => {
+    const res = await proxy(reqFor("/api/vendor/AllVendor"));
+    expect(res.status).toBe(401);
+  });
+
+  it("chan ca user thuong goi /api/admin/vendors", async () => {
+    authState.value = { user: { id: "1", role: "user" } };
+    const res = await proxy(reqFor("/api/admin/vendors"));
+    expect(res.status).toBe(403);
   });
 });

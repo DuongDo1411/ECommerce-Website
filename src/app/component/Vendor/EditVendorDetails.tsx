@@ -32,6 +32,9 @@ interface GhnWard {
 
 function EditVendorDetails() {
   const [shopName, setShopName] = useState("");
+  // GHN dung so nay lam from_phone khi tao van don. Thieu no thi ma nguon thay bang
+  // "0000000000", tuc nhan vien lay hang khong goi duoc cho ai.
+  const [phone, setPhone] = useState("");
   const [taxNumber, setTaxNumber] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -106,6 +109,10 @@ function EditVendorDetails() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!/^0\d{9}$/.test(phone.trim())) {
+      alert("So dien thoai lien he khong hop le: 10 chu so, bat dau bang 0 (VD 0901234567).");
+      return;
+    }
     if (
       !shopName ||
       !taxNumber ||
@@ -119,11 +126,12 @@ function EditVendorDetails() {
     }
     setLoading(true);
     try {
-      const shopAddress = `${addressDetail}, ${sel.wardName}, ${sel.districtName}, ${sel.provinceName}`;
+      // Khong gui shopAddress nua: server tu dung tu cac truong da kiem, de chuoi hien thi
+      // khong the noi khac voi ma phuong/quan that di toi GHN.
       await axios.post("/api/vendor/editDetails", {
+        phone: phone.trim(),
         shopName,
         taxNumber,
-        shopAddress,
         shopAddressDetail: {
           address: addressDetail,
           wardCode: sel.wardCode,
@@ -180,6 +188,18 @@ function EditVendorDetails() {
                 className={`${fieldCls} pl-10`}
                 onChange={(e) => setShopName(e.target.value)}
                 value={shopName}
+              />
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="So dien thoai lien he lay hang (VD 0901234567)"
+                className={fieldCls}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                value={phone}
               />
             </div>
 

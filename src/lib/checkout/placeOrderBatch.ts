@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import mongoose from "mongoose";
 import connectDB from "@/lib/connectDB";
+import { APPROVED_VENDOR_FILTER } from "@/lib/vendorGate";
 import { reserveQuoteVouchers } from "@/lib/voucher/lifecycle";
 import { computeOrderQuote } from "@/lib/voucher/quote";
 import CheckoutBatch from "@/model/checkoutBatch.model";
@@ -116,8 +117,37 @@ export async function placeOrderBatch(
     ...new Set(quote.perOrder.map((item) => item.productId)),
   ];
   const returnProducts = await Product.find({ _id: { $in: returnProductIds } })
-    .select("replacementDays")
+    .select("replacementDays isActive verificationStatus vendor")
     .lean();
+
+  // Kiểm lại NGAY TRƯỚC khi ghi đơn và trừ kho. Giỏ hàng có thể đã nằm đó vài ngày, và trong
+  // khoảng đó sản phẩm có thể bị ẩn đi hoặc nhà bán bị chuyển về pending. Dùng chính truy vấn
+  // ở trên nên không tốn thêm một vòng đọc nào.
+  const unsellable = returnProducts.find(
+    (p) => p.isActive !== true || p.verificationStatus !== "approved",
+  );
+  if (unsellable) {
+    throw new CheckoutError(
+      "vendor_not_sellable",
+      "Một sản phẩm trong giỏ hiện không còn bán. Vui lòng xoá nó rồi thử lại.",
+      409,
+    );
+  }
+
+  const vendorIds = [...new Set(returnProducts.map((p) => String(p.vendor)))];
+  const approvedVendors = await User.find({
+    _id: { $in: vendorIds },
+    ...APPROVED_VENDOR_FILTER,
+  })
+    .select("_id")
+    .lean();
+  if (approvedVendors.length !== vendorIds.length) {
+    throw new CheckoutError(
+      "vendor_not_sellable",
+      "Một cửa hàng trong giỏ hiện tạm ngưng bán. Vui lòng xoá sản phẩm của shop đó rồi thử lại.",
+      409,
+    );
+  }
   const replacementDaysById = new Map<string, number>(
     returnProducts.map((p) => [
       String(p._id),

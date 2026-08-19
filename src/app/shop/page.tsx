@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import connectDB from "@/lib/connectDB";
 import User from "@/model/user.model";
+import { APPROVED_VENDOR_FILTER } from "@/lib/vendorGate";
 import Product from "@/model/product.model";
 import { redirect } from "next/navigation";
 import Navbar from "@/app/component/Navbar";
@@ -29,7 +30,9 @@ export default async function ShopPage() {
   const user = await User.findById(session?.user?.id);
   if (!user) redirect("/login");
 
-  const vendors = await User.find({ role: "vendor", isApproved: true })
+  // `isApproved` mot minh chua du: mot nha ban bi chuyen ve pending co the con co isApproved
+  // cu neu co duong ghi nao dat thieu. Bo loc dung chung kiem ca ba dieu kien.
+  const vendors = await User.find(APPROVED_VENDOR_FILTER)
     .select("_id name shopName image shopBackground")
     .lean<ShopVendorDoc[]>();
 

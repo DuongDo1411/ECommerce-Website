@@ -46,7 +46,7 @@ export interface IUser {
   };
   taxNumber?: string;
   isApproved?: boolean;
-  verificationStatus?: "pending" | "approved" | "rejected";
+  verificationStatus?: "draft" | "pending" | "approved" | "rejected";
   requestedAt?: Date;
   approvedAt?: Date;
   rejectedReason?: string;
@@ -160,7 +160,7 @@ const userSchema = new mongoose.Schema<IUser>(
     },
     verificationStatus: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["draft", "pending", "approved", "rejected"],
       default: "pending",
     },
     approvedAt: {

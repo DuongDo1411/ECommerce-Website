@@ -633,3 +633,175 @@ describe("liên kết và job mail kích hoạt", () => {
     expect(input.scrubOnTerminal).toBe(true);
   });
 });
+
+// Tài khoản nhà bán là tài khoản RIÊNG, bắt buộc dùng email chưa từng đăng ký. Ràng buộc đó do
+// chính unique index trên `emailNormalized` thực thi, còn loại tài khoản được tạo thì do `intent`
+// của bản ghi chờ quyết định — không do query string trên liên kết.
+describe("đăng ký nhà bán", () => {
+  const registerVendor = () => register({ intent: "vendor" });
+
+  it("ghi bản ghi chờ mang intent nhà bán và liên kết có intent=vendor", async () => {
+    expect((await registerVendor()).status).toBe(202);
+
+    const pending = await PendingRegistration.findOne({});
+    expect(pending!.intent).toBe("vendor");
+    expect(await User.countDocuments({})).toBe(0);
+
+    const html = (
+      mocks.enqueueMail.mock.calls[0][0] as { message: { html: string } }
+    ).message.html;
+    expect(html).toMatch(/\/activate\?intent=vendor#token=[a-f0-9]{64}/);
+  });
+
+  it("kích hoạt tạo tài khoản role vendor ở trạng thái draft, chưa được duyệt", async () => {
+    await registerVendor();
+    const token = tokenFromLastMail();
+
+    expect((await activatePOST(req({ token }))).status).toBe(200);
+
+    const user = await User.findOne({ emailNormalized: EMAIL }).select(
+      "+password",
+    );
+    expect(user!.role).toBe("vendor");
+    // Phải là "draft" chứ không phải "pending": schema mặc định là "pending", và một hồ sơ
+    // rỗng ở trạng thái đó sẽ nằm ngay trong hàng chờ duyệt của quản trị viên.
+    expect(user!.verificationStatus).toBe("draft");
+    expect(user!.isApproved).toBe(false);
+    expect(user!.emailVerifiedAt).toBeTruthy();
+    expect(await bcrypt.compare(STRONG, user!.password!)).toBe(true);
+    expect(await PendingRegistration.countDocuments({})).toBe(0);
+  });
+
+  it("từ chối khi email đã có tài khoản người mua", async () => {
+    await User.create({
+      name: "Buyer",
+      email: EMAIL,
+      emailNormalized: EMAIL,
+      password: await bcrypt.hash("someotherpassword1", 10),
+      role: "user",
+    });
+
+    expect((await registerVendor()).status).toBe(409);
+    expect(await PendingRegistration.countDocuments({})).toBe(0);
+    expect(mocks.enqueueMail).not.toHaveBeenCalled();
+  });
+
+  it("trả 409 khi email đang chờ kích hoạt cho luồng khác", async () => {
+    expect((await register()).status).toBe(202);
+    const before = await PendingRegistration.findOne({});
+    await clearRateLimits();
+    mocks.enqueueMail.mockClear();
+
+    const res = await registerVendor();
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("registration_intent_conflict");
+
+    // Bản ghi của luồng kia không bị chạm: token cũ vẫn còn dùng được, và không có bức mail
+    // nào của luồng nhà bán được xếp cho một địa chỉ đang chờ kích hoạt tài khoản người mua.
+    const after = await PendingRegistration.findOne({});
+    expect(after!.tokenHash).toBe(before!.tokenHash);
+    expect(after!.intent).toBeUndefined();
+    expect(mocks.enqueueMail).not.toHaveBeenCalled();
+  });
+
+  it("trả 409 khi bản ghi luồng khác xuất hiện giữa lúc đọc và lúc ghi", async () => {
+    // Mô phỏng đúng cái khe đó: bản ghi của luồng nhà bán đã tồn tại, nhưng lần đọc trong
+    // transaction không thấy nên route đi theo đường tạo mới và đâm vào unique index.
+    await PendingRegistration.create({
+      name: "Seller",
+      email: EMAIL,
+      emailNormalized: EMAIL,
+      passwordHash: await bcrypt.hash(STRONG, 10),
+      tokenHash: "f".repeat(64),
+      expiresAt: new Date(Date.now() + 60_000),
+      intent: "vendor",
+    });
+
+    const blind = { select: () => blind, session: () => Promise.resolve(null) };
+    vi.spyOn(PendingRegistration, "findOne").mockImplementationOnce(
+      () => blind as unknown as ReturnType<typeof PendingRegistration.findOne>,
+    );
+
+    const res = await register();
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("registration_intent_conflict");
+    expect(mocks.enqueueMail).not.toHaveBeenCalled();
+  });
+
+  // Trùng khoá 11000 KHÔNG đồng nghĩa với "hai lượt đăng ký cùng email". `tokenHash` cũng là
+  // khoá duy nhất, và outbox có `dedupeKey`. Trả 202 cho những va chạm đó là nói với người dùng
+  // rằng liên kết đã được gửi, trong khi không có bản ghi nào và không có bức mail nào.
+  it("trả 500 khi trùng khoá đến từ một index khác, không báo đã gửi mail", async () => {
+    const duplicate = new mongoose.mongo.MongoServerError({
+      message: "E11000 duplicate key error",
+    });
+    duplicate.code = 11000;
+    (duplicate as unknown as { keyPattern: unknown }).keyPattern = {
+      tokenHash: 1,
+    };
+    vi.spyOn(PendingRegistration, "create").mockRejectedValueOnce(duplicate);
+
+    const res = await register();
+    expect(res.status).toBe(500);
+    expect(await PendingRegistration.countDocuments({})).toBe(0);
+  });
+
+  it("trả 500 khi bản ghi của bên thắng đã hết hạn", async () => {
+    // Có bản ghi cùng email nên lệnh ghi đâm vào unique index, nhưng nó đã hết hạn — tức không
+    // còn liên kết nào sống để mà nói "đã gửi".
+    await PendingRegistration.create({
+      name: "Cu",
+      email: EMAIL,
+      emailNormalized: EMAIL,
+      passwordHash: await bcrypt.hash(STRONG, 10),
+      tokenHash: "e".repeat(64),
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    const blind = { select: () => blind, session: () => Promise.resolve(null) };
+    vi.spyOn(PendingRegistration, "findOne").mockImplementationOnce(
+      () => blind as unknown as ReturnType<typeof PendingRegistration.findOne>,
+    );
+
+    const res = await register();
+    expect(res.status).toBe(500);
+    expect(mocks.enqueueMail).not.toHaveBeenCalled();
+  });
+
+  it("kích hoạt trả 409 khi email bị tài khoản người mua chiếm trong lúc chờ", async () => {
+    await registerVendor();
+    const token = tokenFromLastMail();
+
+    // Ai đó đăng nhập Google bằng chính email này trước khi nhà bán bấm liên kết.
+    await createGoogleUser();
+
+    const res = await activatePOST(req({ token }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("email_taken");
+
+    // Tài khoản người mua KHÔNG được sửa, và không có tài khoản nhà bán nào được tạo.
+    expect(await User.countDocuments({ emailNormalized: EMAIL })).toBe(1);
+    const owner = await User.findOne({ emailNormalized: EMAIL });
+    expect(owner!.role).toBe("user");
+    // Bản ghi chờ đã bị dọn, nên bấm lại liên kết không nhận đúng một lỗi cũ.
+    expect(await PendingRegistration.countDocuments({})).toBe(0);
+  });
+
+  it("kích hoạt trả 200 khi tài khoản nhà bán đã được tạo bởi lượt đua khác", async () => {
+    await registerVendor();
+    const token = tokenFromLastMail();
+
+    await User.create({
+      name: "Seller",
+      email: EMAIL,
+      emailNormalized: EMAIL,
+      role: "vendor",
+      verificationStatus: "draft",
+      isApproved: false,
+    });
+
+    expect((await activatePOST(req({ token }))).status).toBe(200);
+    expect(await User.countDocuments({ emailNormalized: EMAIL })).toBe(1);
+    expect(await PendingRegistration.countDocuments({})).toBe(0);
+  });
+});

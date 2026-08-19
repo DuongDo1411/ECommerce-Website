@@ -39,3 +39,16 @@ const CREDENTIAL_PROVIDER_BY_ROLE: Record<LoginRole, string> = {
 export function credentialProviderForRole(role: LoginRole): string {
   return CREDENTIAL_PROVIDER_BY_ROLE[role];
 }
+
+/**
+ * The login portal that matches a role.
+ *
+ * Counterpart to `homeForRole`: that one answers "where does this account land AFTER signing
+ * in", this one answers "where must it sign in". Sending a vendor to `/login` is a dead end —
+ * the buyer portal rejects any account whose role is not `user`.
+ */
+export function loginForRole(role?: unknown): string {
+  if (role === "admin") return "/admin/login";
+  if (role === "vendor") return "/vendor/login";
+  return "/login";
+}

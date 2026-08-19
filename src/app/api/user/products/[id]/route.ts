@@ -1,4 +1,5 @@
 import connectDB from "@/lib/connectDB";
+import { sellableProductFilter } from "@/lib/sellable";
 import Product from "@/model/product.model";
 import { NextResponse } from "next/server";
 
@@ -10,9 +11,8 @@ export async function GET(
     await connectDB();
     const { id } = await params;
     const product = await Product.findOne({
+      ...(await sellableProductFilter()),
       _id: id,
-      isActive: true,
-      verificationStatus: "approved",
     }).populate("vendor", "name email shopName shopAddress image");
 
     if (!product) {

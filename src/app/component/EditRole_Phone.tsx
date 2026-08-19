@@ -8,8 +8,9 @@ import { ClipLoader } from 'react-spinners';
 
 /**
  * Phone-only profile completion shown when a signed-in account is missing its
- * pickup phone. Role is never chosen here — becoming a vendor goes through the
- * dedicated "/become-vendor" flow, so a client can never assign itself a role.
+ * pickup phone. Role is never chosen here: a seller account is registered
+ * separately at /vendor/register and its role is set server-side when the
+ * activation link is claimed, so a client can never assign itself a role.
  */
 function EditRole_Phone() {
     const [phone, setPhone] = useState<string>("");

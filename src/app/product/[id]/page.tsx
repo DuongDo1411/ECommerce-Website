@@ -1,4 +1,5 @@
 import connectDB from "@/lib/connectDB";
+import { sellableProductFilter } from "@/lib/sellable";
 import Product from "@/model/product.model";
 import { notFound } from "next/navigation";
 import Navbar from "@/app/component/Navbar";
@@ -26,9 +27,8 @@ export default async function ProductPage({
   await connectDB();
 
   const product = await Product.findOne({
+    ...(await sellableProductFilter()),
     _id: id,
-    isActive: true,
-    verificationStatus: "approved",
   }).populate("vendor", "name email shopName shopAddress image");
 
   if (!product) {

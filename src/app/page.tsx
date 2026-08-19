@@ -1,4 +1,5 @@
 import { getOptionalUser } from "@/lib/rbac";
+import { isVendorProfileIncomplete } from "@/lib/vendorProfile";
 import { redirect } from "next/navigation";
 import React from "react";
 import EditRole_Phone from "./component/EditRole_Phone";
@@ -24,28 +25,23 @@ export default async function Home() {
   }
 
   const { user } = ctx;
-  const inComplete =
-    !user.role || !user.phone || (!user.phone && user.role == "user");
-  if (inComplete) {
-    return <EditRole_Phone />;
-  }
-  if (user?.role == "vendor") {
-    // Also require the GHN-structured pickup address; legacy vendors that
-    // only have the old free-text shopAddress must (re)complete this form.
-    const isCompleteDetails =
-      !user.shopName ||
-      !user.shopAddress ||
-      !user.taxNumber ||
-      !user.shopAddressDetail?.districtId ||
-      !user.shopAddressDetail?.wardCode;
-    if (isCompleteDetails) {
+
+  // Nhà bán được xử lý TRƯỚC form số điện thoại chung. Nhà bán vừa kích hoạt chưa có `phone`,
+  // nên nếu kiểm `phone` trước thì họ bị đẩy vào form của người mua và không bao giờ tới được
+  // nơi khai hồ sơ cửa hàng — nơi duy nhất nhận số điện thoại lấy hàng.
+  if (user.role === "vendor") {
+    if (isVendorProfileIncomplete(user)) {
       return <EditVendorDetails />;
     }
-
     redirect("/vendor");
   }
-  if (user?.role == "admin") {
+
+  if (user.role === "admin") {
     redirect("/admin");
+  }
+
+  if (!user.role || !user.phone) {
+    return <EditRole_Phone />;
   }
 
   const plainUser = JSON.parse(JSON.stringify(user));

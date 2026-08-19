@@ -1,3 +1,7 @@
+import {
+  isVendorApproved,
+  vendorNotApprovedResponse,
+} from "@/lib/vendorGate";
 import uploadOnCloudinary from "@/lib/cloudinary";
 import connectDB from "@/lib/connectDB";
 import { requireRole } from "@/lib/rbac";
@@ -10,6 +14,10 @@ export async function POST(req: NextRequest) {
     await connectDB();
     const authz = await requireRole(["vendor"], { mode: "api" });
     if (authz instanceof NextResponse) return authz;
+
+    // Chưa được duyệt thì không phát sinh giao dịch bán mới. Nhà bán vẫn hoàn thiện được
+    // hồ sơ và vẫn xử lý được đơn đã phát sinh — hai việc đó đi đường khác.
+    if (!isVendorApproved(authz.user)) return vendorNotApprovedResponse();
     const { session } = authz;
 
     const formdata = await req.formData();

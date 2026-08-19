@@ -1,4 +1,5 @@
 import connectDB from "@/lib/connectDB";
+import { APPROVED_VENDOR_FILTER } from "@/lib/vendorGate";
 import User from "@/model/user.model";
 import Product from "@/model/product.model";
 import { NextResponse } from "next/server";
@@ -7,7 +8,7 @@ export async function GET() {
   try {
     await connectDB();
 
-    const vendors = await User.find({ role: "vendor", isApproved: true })
+    const vendors = await User.find(APPROVED_VENDOR_FILTER)
       .select("_id name shopName image vendorProducts vendorReviews")
       .lean();
 

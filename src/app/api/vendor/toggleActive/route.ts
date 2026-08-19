@@ -1,3 +1,7 @@
+import {
+  isVendorApproved,
+  vendorNotApprovedResponse,
+} from "@/lib/vendorGate";
 import connectDB from "@/lib/connectDB";
 import { requireRole } from "@/lib/rbac";
 import Product from "@/model/product.model";
@@ -8,6 +12,10 @@ export async function PATCH(req: NextRequest) {
     await connectDB();
     const authz = await requireRole(["vendor"], { mode: "api" });
     if (authz instanceof NextResponse) return authz;
+
+    // Chưa được duyệt thì không phát sinh giao dịch bán mới. Nhà bán vẫn hoàn thiện được
+    // hồ sơ và vẫn xử lý được đơn đã phát sinh — hai việc đó đi đường khác.
+    if (!isVendorApproved(authz.user)) return vendorNotApprovedResponse();
     const { session } = authz;
 
     const { productId } = await req.json();

@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/rbac";
+import { isVendorProfileIncomplete } from "@/lib/vendorProfile";
 import React from "react";
 import EditVendorDetails from "../component/Vendor/EditVendorDetails";
 import VendorPage from "../component/Vendor/VendorPage";
@@ -8,14 +9,9 @@ import Navbar from "../component/Navbar";
 export default async function VendorDashboardPage() {
   const { user } = await requireRole(["vendor"]);
 
-  const isCompleteDetails =
-    !user.shopName ||
-    !user.shopAddress ||
-    !user.taxNumber ||
-    !user.shopAddressDetail?.districtId ||
-    !user.shopAddressDetail?.wardCode;
-
-  if (isCompleteDetails) {
+  // Chưa đủ hồ sơ thì vào form khai. Điều kiện dùng chung với trang `/` nên hai nơi không thể
+  // lệch nhau, và nó bao gồm cả số điện thoại lấy hàng cùng toàn bộ cấu trúc địa chỉ GHN.
+  if (isVendorProfileIncomplete(user)) {
     return <EditVendorDetails />;
   }
 

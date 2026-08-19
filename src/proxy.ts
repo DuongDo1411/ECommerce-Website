@@ -18,6 +18,10 @@ const PUBLIC_PAGE_PREFIXES = [
   "/login",
   "/register",
   "/vendor/login",
+  // Cổng đăng ký Người bán. `matchesPrefix` so khớp tiền tố CHÍNH XÁC, nên dòng
+  // "/vendor/login" ngay trên KHÔNG phủ đường dẫn này. Thiếu nó thì proxy đẩy êm người
+  // đăng ký về trang đăng nhập và không ai mở shop được.
+  "/vendor/register",
   "/admin/login",
   "/forgot-password",
   "/reset-password",
@@ -37,7 +41,6 @@ const PUBLIC_API_PREFIXES = [
   "/api/shop",
   "/api/user/products",
   "/api/vendor/allProduct",
-  "/api/vendor/AllVendor",
 ];
 
 // Liệt kê từng đường dẫn CHÍNH XÁC, không dùng tiền tố: người gọi ở đây là máy (provider

@@ -1,4 +1,5 @@
 import connectDB from "@/lib/connectDB";
+import { APPROVED_VENDOR_FILTER } from "@/lib/vendorGate";
 import User from "@/model/user.model";
 import Product from "@/model/product.model";
 import { NextRequest, NextResponse } from "next/server";
@@ -36,9 +37,8 @@ export async function GET(
     const { shopId } = await params;
 
     const vendor = await User.findOne({
+      ...APPROVED_VENDOR_FILTER,
       _id: shopId,
-      role: "vendor",
-      isApproved: true,
     })
       .select("_id name shopName image vendorReviews")
       .populate({ path: "vendorReviews.user", select: "name image", strictPopulate: false })

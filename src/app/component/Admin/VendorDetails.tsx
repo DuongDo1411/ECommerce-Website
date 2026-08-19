@@ -32,6 +32,7 @@ interface Vendor {
   requestedAt: string | null;
   approvedAt: string | null;
   createdAt: string | null;
+  updatedAt: string | null;
   totalProducts: number;
   approvedProducts: number;
 }
@@ -78,7 +79,7 @@ export default function VendorDetails() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/vendor/AllVendor")
+    fetch("/api/admin/vendors")
       .then((r) => r.json())
       .then((d) => setVendors(d.vendors ?? []))
       .finally(() => setLoading(false));
