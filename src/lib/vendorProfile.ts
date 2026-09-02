@@ -13,6 +13,16 @@
  */
 export const VN_PHONE_PATTERN = /^0\d{9}$/;
 
+/**
+ * Mã số thuế cũng kiểm ĐỊNH DẠNG chứ không chỉ kiểm rỗng, theo Điều 5 Thông tư 86/2024/TT-BTC
+ * của Bộ Tài chính (ban hành 23/12/2024, hiệu lực từ 06/02/2025):
+ * - 10 chữ số: mã số thuế của đơn vị độc lập (doanh nghiệp, tổ chức có tư cách pháp nhân).
+ * - 13 chữ số, có dấu gạch ngang phân tách 10 số đầu và 3 số cuối: mã số thuế của đơn vị phụ
+ *   thuộc, trong đó 10 số đầu là mã đơn vị chủ quản và 3 số cuối là số thứ tự đơn vị phụ thuộc.
+ * Trước khi có kiểm này, trường chấp nhận bất kỳ chuỗi nào miễn không rỗng.
+ */
+export const VN_TAX_NUMBER_PATTERN = /^\d{10}(-\d{3})?$/;
+
 export interface VendorProfileFields {
   phone?: string;
   shopName?: string;
@@ -38,7 +48,7 @@ export function isVendorProfileComplete(user: VendorProfileFields): boolean {
     VN_PHONE_PATTERN.test((user.phone ?? "").trim()) &&
     filled(user.shopName) &&
     filled(user.shopAddress) &&
-    filled(user.taxNumber) &&
+    VN_TAX_NUMBER_PATTERN.test((user.taxNumber ?? "").trim()) &&
     !!detail &&
     filled(detail.address) &&
     filled(detail.wardCode) &&

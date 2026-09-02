@@ -220,6 +220,43 @@ describe("nhà bán chưa duyệt không bán được nhưng vẫn khai đượ
     expect(vendor!.verificationStatus).toBe("draft");
   });
 
+  it("từ chối hồ sơ có mã số thuế sai định dạng", async () => {
+    // Điều 5 Thông tư 86/2024/TT-BTC: mã số thuế chỉ gồm chữ số (và dấu gạch ngang cho đơn vị
+    // phụ thuộc). Trước khi có kiểm này, một chuỗi lẫn chữ cái như dưới đây vẫn được ghi nhận.
+    await seedVendor();
+    actAs(VENDOR_ID, "vendor");
+
+    for (const bad of ["3692929292929abcez", "010", "0101234567-1", "0101234567-"]) {
+      const res = await editDetailsPOST(post({ ...GOOD_PROFILE, taxNumber: bad }));
+      expect(res.status, bad).toBe(400);
+    }
+
+    const vendor = await User.findById(VENDOR_ID);
+    expect(vendor!.verificationStatus).toBe("draft");
+  });
+
+  it("chấp nhận mã số thuế 10 số và 13 số có gạch ngang", async () => {
+    await seedVendor();
+    actAs(VENDOR_ID, "vendor");
+
+    expect(
+      (await editDetailsPOST(post({ ...GOOD_PROFILE, taxNumber: "0101234567" })))
+        .status,
+    ).toBe(200);
+
+    await User.updateOne({ _id: VENDOR_ID }, { verificationStatus: "draft" });
+    expect(
+      (
+        await editDetailsPOST(
+          post({ ...GOOD_PROFILE, taxNumber: "0101234567-001" }),
+        )
+      ).status,
+    ).toBe(200);
+
+    const vendor = await User.findById(VENDOR_ID);
+    expect(vendor!.taxNumber).toBe("0101234567-001");
+  });
+
   it("đang pending với hồ sơ đầy đủ thì không gửi lại được", async () => {
     await seedVendor({
       ...GOOD_PROFILE,

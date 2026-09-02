@@ -84,6 +84,26 @@ describe("hồ sơ cửa hàng đầy đủ", () => {
     }
   });
 
+  it("từ chối mã số thuế sai định dạng", () => {
+    // Điều 5 Thông tư 86/2024/TT-BTC: 10 chữ số, hoặc 13 chữ số có gạch ngang phân tách 10 số
+    // đầu và 3 số cuối. Trước khi có kiểm này, một chuỗi bất kỳ (kể cả lẫn chữ cái) vẫn qua.
+    for (const taxNumber of ["3692929292929abcez", "010", "0101234567-1", "0101234567-"]) {
+      expect(
+        isVendorProfileComplete({ ...completeProfile, taxNumber }),
+        taxNumber,
+      ).toBe(false);
+    }
+  });
+
+  it("chấp nhận mã số thuế 13 số có gạch ngang cho đơn vị phụ thuộc", () => {
+    expect(
+      isVendorProfileComplete({
+        ...completeProfile,
+        taxNumber: "0101234567-001",
+      }),
+    ).toBe(true);
+  });
+
   it("từ chối chuỗi chỉ có khoảng trắng", () => {
     expect(
       isVendorProfileComplete({ ...completeProfile, shopName: "   " }),

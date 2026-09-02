@@ -1,5 +1,9 @@
 import { VENDOR_CODES } from "@/lib/vendorGate";
-import { isVendorProfileComplete, VN_PHONE_PATTERN } from "@/lib/vendorProfile";
+import {
+  isVendorProfileComplete,
+  VN_PHONE_PATTERN,
+  VN_TAX_NUMBER_PATTERN,
+} from "@/lib/vendorProfile";
 import User from "@/model/user.model";
 
 /**
@@ -60,10 +64,18 @@ export async function submitVendorProfile(
 
   const shopName = clean(b.shopName, 120);
   const taxNumber = clean(b.taxNumber, 50);
-  if (!shopName || !taxNumber) {
+  if (!shopName) {
+    return { status: 400, message: "Tên cửa hàng là bắt buộc." };
+  }
+
+  // Điều 5 Thông tư 86/2024/TT-BTC (hiệu lực 06/02/2025): 10 chữ số cho đơn vị độc lập, hoặc
+  // 13 chữ số có gạch ngang phân tách 10 số đầu và 3 số cuối cho đơn vị phụ thuộc. Trước quy
+  // tắc này trường chỉ kiểm không rỗng, nên một chuỗi bất kỳ (kể cả lẫn chữ cái) đều lọt qua.
+  if (!VN_TAX_NUMBER_PATTERN.test(taxNumber)) {
     return {
       status: 400,
-      message: "Tên cửa hàng và mã số thuế là bắt buộc.",
+      message:
+        "Mã số thuế không hợp lệ. Nhập 10 chữ số (VD 0101234567), hoặc 13 chữ số có gạch ngang cho đơn vị phụ thuộc (VD 0101234567-001).",
     };
   }
 

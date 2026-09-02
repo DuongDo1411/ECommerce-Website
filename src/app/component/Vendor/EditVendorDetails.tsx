@@ -9,6 +9,8 @@ import {
 import { ClipLoader } from "react-spinners";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import BackHomeBrand from "../BackHomeBrand";
+import { useToast } from "@/context/ToastContext";
 
 interface GhnOption {
   id: string | number;
@@ -39,6 +41,7 @@ function EditVendorDetails() {
   const [addressDetail, setAddressDetail] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [provinces, setProvinces] = useState<GhnOption[]>([]);
   const [districts, setDistricts] = useState<GhnOption[]>([]);
@@ -110,7 +113,10 @@ function EditVendorDetails() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^0\d{9}$/.test(phone.trim())) {
-      alert("So dien thoai lien he khong hop le: 10 chu so, bat dau bang 0 (VD 0901234567).");
+      showToast(
+        "So dien thoai lien he khong hop le: 10 chu so, bat dau bang 0 (VD 0901234567).",
+        "error",
+      );
       return;
     }
     if (
@@ -121,7 +127,16 @@ function EditVendorDetails() {
       !sel.districtId ||
       !sel.wardCode
     ) {
-      alert("Vui lòng điền đầy đủ thông tin (gồm Tỉnh / Quận / Phường)");
+      showToast("Vui lòng điền đầy đủ thông tin (gồm Tỉnh / Quận / Phường)", "error");
+      return;
+    }
+    // Dieu 5 Thong tu 86/2024/TT-BTC (hieu luc 06/02/2025): 10 chu so cho don vi doc lap, hoac
+    // 13 chu so co gach ngang phan tach 10 so dau va 3 so cuoi cho don vi phu thuoc.
+    if (!/^\d{10}(-\d{3})?$/.test(taxNumber.trim())) {
+      showToast(
+        "Ma so thue khong hop le: nhap 10 chu so (VD 0101234567), hoac 13 chu so co gach ngang cho don vi phu thuoc (VD 0101234567-001).",
+        "error",
+      );
       return;
     }
     setLoading(true);
@@ -142,16 +157,17 @@ function EditVendorDetails() {
           provinceName: sel.provinceName,
         },
       });
-      alert("Vendor Shop Details added Successfully");
+      showToast("Vendor Shop Details added Successfully", "success");
       setLoading(false);
-      router.push("/");
+      // Cho toast kip hien truoc khi dieu huong, giong pattern da dung o LoginForm.
+      setTimeout(() => router.push("/"), 1200);
     } catch (error) {
       setLoading(false);
       const fallback = "Lỗi cập nhật thông tin shop";
       const message = axios.isAxiosError<{ message?: string }>(error)
         ? (error.response?.data?.message ?? fallback)
         : fallback;
-      alert(message);
+      showToast(message, "error");
     }
   };
 
@@ -161,6 +177,7 @@ function EditVendorDetails() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-gray-900 via-black to-gray-900 text-white p-6">
+      <BackHomeBrand />
       <AnimatePresence>
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -288,9 +305,13 @@ function EditVendorDetails() {
               />
               <input
                 type="text"
-                placeholder="Tax Number"
+                inputMode="numeric"
+                maxLength={14}
+                placeholder="Mã số thuế (VD 0101234567)"
                 className={`${fieldCls} pl-10`}
-                onChange={(e) => setTaxNumber(e.target.value)}
+                onChange={(e) =>
+                  setTaxNumber(e.target.value.replace(/[^\d-]/g, ""))
+                }
                 value={taxNumber}
               />
             </div>
