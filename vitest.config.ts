@@ -16,7 +16,7 @@ export default defineConfig({
     // multiple suites together in this project. The forks pool is stable here.
     pool: "forks",
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     // Test tích hợp khởi động MongoMemoryReplSet riêng cho từng file; chạy song song
     // nhiều file cùng lúc trên máy tải nặng có thể vượt mốc 5s mặc định vì tranh chấp
     // tài nguyên (không phải lỗi logic). Nới rộng để suite xanh ổn định.

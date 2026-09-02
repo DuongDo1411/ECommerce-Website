@@ -41,6 +41,10 @@ yarn-error.log*
 # local DB backups — never commit (may contain PII / password hashes)
 /backups/
 
+# scripts/seed-products.ts output — local only, never commit
+/scripts/.seed-manifests/
+/scripts/.seed-logs/
+
 # vercel
 .vercel
 
