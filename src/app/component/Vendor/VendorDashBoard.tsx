@@ -159,11 +159,16 @@ function VendorDashBoard({ user }: { user: IUser }) {
         )}
       </div>
 
+      {/* self-start + max-h (thay vì h-screen) là bắt buộc: h-screen làm hộp sidebar cao đúng
+          100vh dù nội dung menu chỉ ~500px, nên khi trang không đủ dài, sticky phải "nhả" sớm
+          để không vượt quá container — phần trên sidebar bị cuộn khuất trong khi phần dưới vẫn
+          hiện. top-16 khớp với pt-16 của VendorPage để sidebar không bị Navbar fixed che mất
+          khi đã dính. */}
       <motion.div
         initial={{ x: -40, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.4 }}
-        className="hidden lg:flex flex-col w-72 bg-linear-to-b from-gray-900/80 to-black/60 border-r border-emerald-500/20 mt-0 p-6 backdrop-blur-xl sticky top-0 h-screen"
+        className="hidden lg:flex flex-col self-start w-72 bg-linear-to-b from-gray-900/80 to-black/60 border-r border-emerald-500/20 p-6 backdrop-blur-xl sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto"
       >
         <motion.div
           initial={{ opacity: 0, y: -10 }}

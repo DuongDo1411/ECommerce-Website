@@ -31,7 +31,9 @@ function formatSubmittedAt(value: unknown): string | null {
  */
 function StatusShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="w-full min-h-screen flex items-center justify-center px-4 pt-20 pb-12">
+    // Trừ 4rem chiều cao navbar. Để nguyên `min-h-screen` thì trang cao hơn màn hình đúng
+    // phần navbar, và người bán phải cuộn qua một khoảng trống mới nhìn thấy footer.
+    <div className="w-full min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 pt-20 pb-16">
       <div className="w-full max-w-xl bg-white/5 border border-white/10 rounded-2xl p-6 sm:p-8">
         {children}
       </div>
@@ -80,7 +82,7 @@ function InfoRow({
   if (!value) return null;
   return (
     <div className={wide ? "sm:col-span-2" : undefined}>
-      <dt className="text-xs text-gray-500">{label}</dt>
+      <dt className="text-xs text-gray-400">{label}</dt>
       <dd className="mt-1 text-sm text-gray-200 break-words">{value}</dd>
     </div>
   );
@@ -158,7 +160,7 @@ function PendingSteps() {
           >
             {!isLast && (
               <span
-                className="absolute left-[5px] top-4 bottom-0 w-px bg-white/10"
+                className="absolute left-[5px] top-4 bottom-0 w-px bg-white/20"
                 aria-hidden="true"
               />
             )}
@@ -188,7 +190,7 @@ function PendingSteps() {
               >
                 {step.label}
               </p>
-              <p className="mt-0.5 text-xs text-gray-500">{step.note}</p>
+              <p className="mt-0.5 text-xs text-gray-400">{step.note}</p>
             </div>
           </li>
         );
@@ -258,7 +260,7 @@ function VendorPage({ user }: { user: IUser }) {
         {/* Nói rõ hồ sơ bị khoá, vì `submitVendorProfile` trả 409 invalid_vendor_transition cho
             một hồ sơ đã đủ đang ở trạng thái pending. Đưa nút "sửa hồ sơ" vào đây sẽ dẫn người
             bán tới một form không lưu được. */}
-        <p className="mt-6 pt-6 border-t border-white/10 text-xs text-gray-500 leading-relaxed">
+        <p className="mt-6 pt-6 border-t border-white/10 text-xs text-gray-400 leading-relaxed">
           Hồ sơ được giữ nguyên trong lúc chờ để quản trị viên và bạn cùng xem
           một bản. Nếu bị từ chối, bạn sẽ thấy lý do ngay tại đây và sửa lại
           được.
@@ -296,7 +298,7 @@ function VendorPage({ user }: { user: IUser }) {
           Sửa hồ sơ và gửi lại
         </button>
 
-        <p className="mt-4 text-xs text-gray-500">
+        <p className="mt-4 text-xs text-gray-400">
           Hồ sơ đã khai vẫn còn, bạn chỉ cần sửa phần cần thiết.
         </p>
       </StatusShell>

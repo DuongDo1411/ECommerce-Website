@@ -3,7 +3,7 @@ import { IProduct } from "@/model/product.model";
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import React, { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   FaArrowLeft,
   FaCheckCircle,
@@ -32,6 +32,7 @@ interface Props {
 
 export default function ProductDetailClient({ product }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
 
   const images = [
     product.image1,
@@ -59,6 +60,7 @@ export default function ProductDetailClient({ product }: Props) {
   const [cartMsg, setCartMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [vouchers, setVouchers] = useState<PublicVoucher[]>([]);
   const [showVoucherModal, setShowVoucherModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     if (!showVoucherModal) return;
@@ -68,6 +70,15 @@ export default function ProductDetailClient({ product }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [showVoucherModal]);
+
+  useEffect(() => {
+    if (!showLoginModal) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowLoginModal(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showLoginModal]);
 
   const productId = toId(product._id);
   const { refreshCart } = useCart();
@@ -110,6 +121,12 @@ export default function ProductDetailClient({ product }: Props) {
         }),
       });
       const data = await res.json();
+      // Khách chưa đăng nhập: mời đăng nhập bằng popup, không hiện thẳng chuỗi lỗi
+      // "Unauthorized" của API — khách không hiểu chuỗi đó nghĩa là gì.
+      if (res.status === 401) {
+        setShowLoginModal(true);
+        return;
+      }
       if (!res.ok) {
         setCartMsg({ type: "error", text: data.message ?? "Thêm thất bại" });
       } else {
@@ -642,6 +659,55 @@ export default function ProductDetailClient({ product }: Props) {
                     />
                   );
                 })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showLoginModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+            onClick={() => setShowLoginModal(false)}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="login-required-title"
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 24, opacity: 0 }}
+              className="w-full max-w-sm rounded-2xl border border-white/10 bg-gray-950 p-6 text-center"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/15 text-2xl">
+                🔒
+              </div>
+              <h3 id="login-required-title" className="text-lg font-bold text-white">
+                Đăng nhập để mua hàng
+              </h3>
+              <p className="mt-2 text-sm text-gray-400">
+                Bạn cần đăng nhập để thêm sản phẩm vào giỏ hàng hoặc mua ngay.
+              </p>
+              <div className="mt-5 flex flex-col gap-2">
+                <button
+                  onClick={() =>
+                    router.push(`/login?callbackUrl=${encodeURIComponent(pathname)}`)
+                  }
+                  className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-500"
+                >
+                  Đăng nhập
+                </button>
+                <button
+                  onClick={() => setShowLoginModal(false)}
+                  className="w-full rounded-xl bg-white/5 py-2.5 text-sm font-medium text-gray-300 transition-colors hover:bg-white/10"
+                >
+                  Để sau
+                </button>
               </div>
             </motion.div>
           </motion.div>
