@@ -12,6 +12,7 @@ import {
   REGISTRATION_TOKEN_STORAGE_KEY,
   resolveFragmentSecret,
 } from "@/lib/security/fragmentSecret";
+import BackHomeBrand from "../component/BackHomeBrand";
 
 type Phase = "working" | "done" | "invalid" | "taken" | "retryable";
 
@@ -175,6 +176,7 @@ export default function ActivatePage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white p-6">
+      <BackHomeBrand />
       <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-2xl p-8">
         <h1 className="text-2xl font-bold mb-2">Kích hoạt tài khoản</h1>
         <p className="text-gray-300 text-sm mb-6">{message}</p>

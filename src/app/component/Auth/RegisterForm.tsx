@@ -8,6 +8,7 @@ import axios from 'axios';
 import { ClipLoader } from 'react-spinners';
 import { signIn } from 'next-auth/react';
 import { ToastContainer, type ToastData } from '../Toast';
+import BackHomeBrand from '../BackHomeBrand';
 import { REGISTRATION_LAST_SENT_AT_STORAGE_KEY } from '@/lib/security/fragmentSecret';
 
 /** Khớp cooldown 60 giây mà server áp cho mỗi địa chỉ email. */
@@ -145,6 +146,7 @@ function RegisterForm({ portal }: { portal: RegisterPortal }) {
 
     return (
         <div className='relative min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white p-6 overflow-hidden'>
+            <BackHomeBrand />
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none" />
 

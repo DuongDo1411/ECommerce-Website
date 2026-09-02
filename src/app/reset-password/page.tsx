@@ -3,16 +3,19 @@
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { loginForRole } from "@/lib/roleRoutes";
 import {
   PASSWORD_RESET_TOKEN_STORAGE_KEY,
   resolveFragmentSecret,
 } from "@/lib/security/fragmentSecret";
+import BackHomeBrand from "../component/BackHomeBrand";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
   const tokenRef = useRef("");
   const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -70,20 +73,30 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white p-6">
+      <BackHomeBrand />
       <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-2xl p-8">
         <h1 className="text-2xl font-bold mb-2">Đặt lại mật khẩu</h1>
         <p className="text-gray-400 text-sm mb-6">
           Nhập mật khẩu mới cho tài khoản của bạn.
         </p>
         <form onSubmit={submit} className="space-y-4">
-          <input
-            type="password"
-            required
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Mật khẩu mới (tối thiểu 12 ký tự)"
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-blue-500"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              required
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Mật khẩu mới (tối thiểu 12 ký tự)"
+              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 pr-11 outline-none focus:border-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+            >
+              {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+            </button>
+          </div>
           <button
             disabled={loading}
             type="submit"

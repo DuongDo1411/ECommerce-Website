@@ -7,6 +7,7 @@ import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import { signIn, signOut, getSession } from 'next-auth/react';
 import { ToastContainer, type ToastData } from '../Toast';
+import BackHomeBrand from '../BackHomeBrand';
 import { credentialProviderForRole, homeForRole, safeCallbackPath, type LoginRole } from '@/lib/roleRoutes';
 
 interface LoginFormProps {
@@ -256,6 +257,7 @@ export default function LoginForm({
 
   return (
     <div className='min-h-screen flex items-center justify-center bg-linear-to-br from-gray-900 via-[#0a0a0a] to-gray-900 text-white p-6'>
+      <BackHomeBrand />
       <AnimatePresence>
         <motion.div
           initial={{ opacity: 0, y: 40 }}

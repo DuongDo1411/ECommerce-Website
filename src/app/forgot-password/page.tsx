@@ -2,6 +2,7 @@
 
 import axios from "axios";
 import { useState, type FormEvent } from "react";
+import BackHomeBrand from "../component/BackHomeBrand";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -26,6 +27,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white p-6">
+      <BackHomeBrand />
       <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-2xl p-8">
         <h1 className="text-2xl font-bold mb-2">Quên mật khẩu</h1>
         <p className="text-gray-400 text-sm mb-6">

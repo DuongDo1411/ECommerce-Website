@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 import { AiOutlinePhone } from 'react-icons/ai';
 import { ClipLoader } from 'react-spinners';
+import BackHomeBrand from './BackHomeBrand';
+import { useToast } from '@/context/ToastContext';
 
 /**
  * Phone-only profile completion shown when a signed-in account is missing its
@@ -16,11 +18,15 @@ function EditRole_Phone() {
     const [phone, setPhone] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const { showToast } = useToast();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!/^0\d{9}$/.test(phone.trim())) {
-            alert("Số điện thoại không hợp lệ — phải gồm 10 chữ số và bắt đầu bằng 0 (VD: 0901234567). GHN dùng số này để liên hệ lấy hàng.");
+            showToast(
+                "Số điện thoại không hợp lệ — phải gồm 10 chữ số và bắt đầu bằng 0 (VD: 0901234567). GHN dùng số này để liên hệ lấy hàng.",
+                "error",
+            );
             return;
         }
         setLoading(true);
@@ -32,7 +38,7 @@ function EditRole_Phone() {
             const message = axios.isAxiosError<{ message?: string }>(error)
                 ? error.response?.data?.message
                 : undefined;
-            alert(message ?? "Có lỗi xảy ra, vui lòng thử lại");
+            showToast(message ?? "Có lỗi xảy ra, vui lòng thử lại", "error");
             console.log(error);
         } finally {
             setLoading(false);
@@ -41,6 +47,7 @@ function EditRole_Phone() {
 
     return (
         <div className='min-h-screen flex items-center justify-center bg-[#050505] text-white p-6 relative overflow-hidden'>
+            <BackHomeBrand />
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]" />
 
