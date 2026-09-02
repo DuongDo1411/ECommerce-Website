@@ -16,6 +16,7 @@ import {
   FaXmark,
 } from "react-icons/fa6";
 import { ClipLoader } from "react-spinners";
+import { useToast } from "@/context/ToastContext";
 
 export interface Address {
   _id: string;
@@ -66,6 +67,7 @@ const emptyForm = {
 };
 
 export default function AddressBook() {
+  const { showToast } = useToast();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -190,7 +192,7 @@ export default function AddressBook() {
       !form.wardCode ||
       !form.addressDetail
     ) {
-      alert("Vui lòng điền đầy đủ thông tin địa chỉ");
+      showToast("Vui lòng điền đầy đủ thông tin địa chỉ", "error");
       return;
     }
     setSaving(true);
@@ -206,7 +208,7 @@ export default function AddressBook() {
       const message = axios.isAxiosError(error)
         ? (error.response?.data?.message as string | undefined)
         : undefined;
-      alert(message ?? "Lưu địa chỉ thất bại");
+      showToast(message ?? "Lưu địa chỉ thất bại", "error");
     } finally {
       setSaving(false);
     }
@@ -214,13 +216,27 @@ export default function AddressBook() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Xóa địa chỉ này?")) return;
-    await axios.delete(`/api/user/addresses/${id}`);
-    await loadAddresses();
+    try {
+      await axios.delete(`/api/user/addresses/${id}`);
+      await loadAddresses();
+    } catch (error) {
+      const message = axios.isAxiosError(error)
+        ? (error.response?.data?.message as string | undefined)
+        : undefined;
+      showToast(message ?? "Xóa địa chỉ thất bại", "error");
+    }
   };
 
   const handleSetDefault = async (id: string) => {
-    await axios.patch(`/api/user/addresses/${id}/default`);
-    await loadAddresses();
+    try {
+      await axios.patch(`/api/user/addresses/${id}/default`);
+      await loadAddresses();
+    } catch (error) {
+      const message = axios.isAxiosError(error)
+        ? (error.response?.data?.message as string | undefined)
+        : undefined;
+      showToast(message ?? "Đặt địa chỉ mặc định thất bại", "error");
+    }
   };
 
   const inputCls =

@@ -21,11 +21,13 @@ import axios from "axios";
 import UseGetAllVendors from "@/hooks/UserGetAllVendors";
 import { setAllVendorData } from "@/redux/vendorSlice";
 import { ClipLoader } from "react-spinners";
+import { useToast } from "@/context/ToastContext";
 
 type ModalStep = "detail" | "reject";
 
 function VendorApproval() {
   const dispatch = useDispatch<AppDispatch>();
+  const { showToast } = useToast();
   UseGetAllVendors();
   const allVendorsData: IUser[] = useSelector(
     (state: RootState) => state.vendor.allVendorsData,
@@ -96,11 +98,14 @@ function VendorApproval() {
       setSelectedVendor(null);
       setStep("detail");
       await reloadVendors();
-      alert(data.message ?? "Hồ sơ đã thay đổi, danh sách vừa được tải lại.");
+      showToast(
+        data.message ?? "Hồ sơ đã thay đổi, danh sách vừa được tải lại.",
+        "error",
+      );
       return;
     }
 
-    alert(data?.message ?? fallback);
+    showToast(data?.message ?? fallback, "error");
   };
 
   const handleApproved = async () => {
@@ -121,7 +126,7 @@ function VendorApproval() {
       setStep("detail");
       setRejectedReason("");
       setLoading(false);
-      alert("Approval Success");
+      showToast("Approval Success", "success");
     } catch (error) {
       console.log(error);
       setLoading(false);
@@ -147,7 +152,7 @@ function VendorApproval() {
       setStep("detail");
       setRejectedReason("");
       setLoading(false);
-      alert("Vendor Rejected");
+      showToast("Vendor Rejected", "success");
     } catch (error) {
       console.log(error);
       setLoading(false);

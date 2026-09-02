@@ -24,11 +24,13 @@ import { ClipLoader } from "react-spinners";
 import UseGetAllProducts from "@/hooks/UseGetAllProductsData";
 import Image from "next/image";
 import { setAllProductsData } from "@/redux/vendorSlice";
+import { useToast } from "@/context/ToastContext";
 
 type ModalStep = "detail" | "reject";
 
 function ProductApproval() {
   const dispatch = useDispatch<AppDispatch>();
+  const { showToast } = useToast();
   UseGetAllProducts();
   const allProductsData: IProduct[] = useSelector(
     (state: RootState) => state.vendor.allProductsData,
@@ -89,11 +91,11 @@ function ProductApproval() {
       setStep("detail");
       setRejectedReason("");
       setLoading(false);
-      alert("Approval Success");
+      showToast("Approval Success", "success");
     } catch (error) {
       console.log(error);
       setLoading(false);
-      alert("Approval Failed");
+      showToast("Approval Failed", "error");
     }
   };
 
@@ -115,11 +117,11 @@ function ProductApproval() {
       setStep("detail");
       setRejectedReason("");
       setLoading(false);
-      alert("Product Rejected");
+      showToast("Product Rejected", "success");
     } catch (error) {
       console.log(error);
       setLoading(false);
-      alert("Rejected Failed");
+      showToast("Rejected Failed", "error");
     }
   };
 

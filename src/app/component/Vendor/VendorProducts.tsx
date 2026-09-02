@@ -14,6 +14,7 @@ import { FiUpload, FiX, FiCheck, FiSend, FiEdit2, FiToggleLeft, FiToggleRight, F
 import { FaBoxOpen, FaCheckCircle, FaClock, FaTag, FaLayerGroup } from "react-icons/fa";
 import { ClipLoader } from "react-spinners";
 import { IProduct } from "@/model/product.model";
+import { useToast } from "@/context/ToastContext";
 
 const CATEGORIES = [
   "Fashion & Lifestyle",
@@ -53,6 +54,7 @@ type PreviewSetter = React.Dispatch<React.SetStateAction<string | null>>;
 function VendorProducts() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
+  const { showToast } = useToast();
   UseGetCurrentUser();
   UseGetAllProducts();
   const currentUser = useSelector((state: RootState) => state.user.userData);
@@ -189,7 +191,7 @@ function VendorProducts() {
       dispatch(setAllProductsData(updated));
     } catch (err) {
       console.error(err);
-      alert("❌ Failed to update product status.");
+      showToast("Failed to update product status.", "error");
     } finally {
       setToggleLoading((prev) => ({ ...prev, [id]: false }));
     }
@@ -238,11 +240,11 @@ function VendorProducts() {
       dispatch(setAllProductsData(refreshed.data));
       setEditLoading(false);
       closeEdit();
-      alert("✅ Product updated & resubmitted for admin review!");
+      showToast("Product updated & resubmitted for admin review!", "success");
     } catch (err) {
       console.error(err);
       setEditLoading(false);
-      alert("❌ Failed to update product.");
+      showToast("Failed to update product.", "error");
     }
   };
 

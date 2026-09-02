@@ -3,6 +3,7 @@
 import UseGetCurrentUser from "@/hooks/UseGetCurrentUser";
 import { AppDispatch, RootState } from "@/redux/store";
 import { setUserData } from "@/redux/userSlice";
+import { useToast } from "@/context/ToastContext";
 import axios from "axios";
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -37,6 +38,7 @@ function Profile() {
   const user = useSelector((state: RootState) => state.user.userData);
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
+  const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<ProfileTab>("profile");
   const [profileImage, setProfileImage] = useState<File | null>(null);
@@ -83,8 +85,9 @@ function Profile() {
 
   const handleUpdateProfile = async () => {
     if (!/^0\d{9}$/.test(phone.trim())) {
-      alert(
+      showToast(
         "Số điện thoại không hợp lệ - phải gồm 10 chữ số và bắt đầu bằng 0 (VD: 0901234567).",
+        "error",
       );
       return;
     }
@@ -101,12 +104,12 @@ function Profile() {
       dispatch(setUserData(result.data));
       setProfileImage(null);
       setPreviewImage(null);
-      alert("Cập nhật hồ sơ thành công");
+      showToast("Cập nhật hồ sơ thành công", "success");
     } catch (error) {
       const message = axios.isAxiosError<{ message?: string }>(error)
         ? error.response?.data?.message
         : undefined;
-      alert(message ?? "Cập nhật hồ sơ thất bại");
+      showToast(message ?? "Cập nhật hồ sơ thất bại", "error");
     } finally {
       setLoading(false);
     }
