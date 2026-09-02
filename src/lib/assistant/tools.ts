@@ -21,7 +21,7 @@ export const SEARCH_PRODUCTS_TOOL = {
   type: "function" as const,
   name: "search_products",
   description:
-    "Tìm sản phẩm đang bán trên Ecoshop theo từ khóa, danh mục, khoảng giá, size hoặc điều kiện thanh toán/giao hàng. Chỉ trả sản phẩm đã duyệt và đang hiển thị công khai.",
+    "Tìm sản phẩm đang bán trên MultiCart theo từ khóa, danh mục, khoảng giá, size hoặc điều kiện thanh toán/giao hàng. Chỉ trả sản phẩm đã duyệt và đang hiển thị công khai.",
   parameters: {
     type: "object",
     properties: {
@@ -38,10 +38,10 @@ export const SEARCH_PRODUCTS_TOOL = {
   },
 };
 
-export const GET_ECOSHOP_POLICY_TOOL = {
+export const GET_MULTICART_POLICY_TOOL = {
   type: "function" as const,
-  name: "get_ecoshop_policy",
-  description: "Lấy nội dung chính sách thật của Ecoshop theo chủ đề (thanh toán, vận chuyển, đổi/trả, voucher, hỗ trợ).",
+  name: "get_multicart_policy",
+  description: "Lấy nội dung chính sách thật của MultiCart theo chủ đề (thanh toán, vận chuyển, đổi/trả, voucher, hỗ trợ).",
   parameters: {
     type: "object",
     properties: {
@@ -72,7 +72,7 @@ export const GET_MY_ORDERS_TOOL = {
 
 /** Tools luôn khả dụng cho mọi người, kể cả khách chưa đăng nhập. */
 export function publicTools() {
-  return [SEARCH_PRODUCTS_TOOL, GET_ECOSHOP_POLICY_TOOL];
+  return [SEARCH_PRODUCTS_TOOL, GET_MULTICART_POLICY_TOOL];
 }
 
 /**
@@ -137,7 +137,7 @@ export async function executeTool(
     return { resultForModel: { products }, products };
   }
 
-  if (name === "get_ecoshop_policy") {
+  if (name === "get_multicart_policy") {
     const topic = toTrimmedString(args.topic) ?? "";
     return { resultForModel: { text: getPolicyText(topic) } };
   }

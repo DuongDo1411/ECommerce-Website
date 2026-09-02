@@ -104,7 +104,7 @@ describe("runAssistantTurn (orchestrator)", () => {
           {
             type: "function_call",
             id: "c2",
-            name: "get_ecoshop_policy",
+            name: "get_multicart_policy",
             arguments: { topic: "shipping" },
           },
         ],

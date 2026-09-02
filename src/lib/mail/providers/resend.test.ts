@@ -12,7 +12,7 @@ import { MailSendError } from "../types";
 import { applyDisplayName, createResendProvider } from "./resend";
 
 const API_KEY = "re_test_key";
-const FROM = "Ecoshop <no-reply@mail.example.com>";
+const FROM = "MultiCart <no-reply@mail.example.com>";
 
 const MESSAGE = {
   to: "buyer@example.com",
@@ -85,8 +85,8 @@ describe("applyDisplayName", () => {
   });
 
   it("hoạt động với MAIL_FROM dạng địa chỉ trần", () => {
-    expect(applyDisplayName("no-reply@mail.example.com", "Ecoshop")).toBe(
-      '"Ecoshop" <no-reply@mail.example.com>',
+    expect(applyDisplayName("no-reply@mail.example.com", "MultiCart")).toBe(
+      '"MultiCart" <no-reply@mail.example.com>',
     );
   });
 
@@ -102,7 +102,7 @@ describe("gửi thành công", () => {
     fetchMock.mockResolvedValue(jsonResponse({ id: "msg_123" }, 200));
 
     const result = await createResendProvider(API_KEY, FROM).send(
-      { ...MESSAGE, fromName: "Ecoshop" },
+      { ...MESSAGE, fromName: "MultiCart" },
       SEND_OPTIONS,
     );
 
@@ -115,7 +115,7 @@ describe("gửi thành công", () => {
     );
     const body = JSON.parse(init.body as string);
     expect(body).toMatchObject({
-      from: '"Ecoshop" <no-reply@mail.example.com>',
+      from: '"MultiCart" <no-reply@mail.example.com>',
       to: ["buyer@example.com"],
       subject: "Chủ đề thử",
       html: "<p>Nội dung</p>",

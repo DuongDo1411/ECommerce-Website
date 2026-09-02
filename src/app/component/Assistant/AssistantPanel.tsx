@@ -171,7 +171,7 @@ export default function AssistantPanel({ onClose }: { onClose: () => void }) {
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-indigo-950/40 px-4">
         <div>
           <p className="text-sm font-semibold">Trợ lý AI mua sắm</p>
-          <p className="text-[11px] text-gray-400">Ecoshop · có thể trả lời chưa chính xác</p>
+          <p className="text-[11px] text-gray-400">MultiCart · có thể trả lời chưa chính xác</p>
         </div>
         <button
           type="button"

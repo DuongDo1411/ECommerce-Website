@@ -17,7 +17,7 @@ const RESEND_PROD: MailEnvironment = {
   MAIL_PROVIDER: "resend",
   RESEND_API_KEY: "re_test_key",
   RESEND_WEBHOOK_SECRET: "whsec_test",
-  MAIL_FROM: "Ecoshop <no-reply@mail.example.com>",
+  MAIL_FROM: "MultiCart <no-reply@mail.example.com>",
   ADMIN_EMAIL: "admin@example.com",
   NODE_ENV: "production",
 };

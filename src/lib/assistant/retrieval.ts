@@ -115,7 +115,7 @@ export async function searchProducts(
       price: p.price,
       image: p.image1 || null,
       category: p.category,
-      shopName: p.vendor?.shopName || p.vendor?.name || "Cửa hàng Ecoshop",
+      shopName: p.vendor?.shopName || p.vendor?.name || "Cửa hàng MultiCart",
       inStock: true, // đã lọc ở filter, luôn true khi tới được đây
       payOnDelivery: Boolean(p.payOnDelivery),
       freeDelivery: Boolean(p.freeDelivery),
